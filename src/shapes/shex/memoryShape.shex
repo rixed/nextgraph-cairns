@@ -1,0 +1,33 @@
+PREFIX app: <did:ng:z:cairns/>
+PREFIX schema: <https://schema.org/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX geo: <http://www.w3.org/2003/01/geo/wgs84_pos#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+
+# EXTRA a: memories are multi-typed (schema:Event, sometimes schema:Trip).
+app:MemoryShape EXTRA a {
+  a [app:Memory] ;
+  schema:name xsd:string ? ;
+  schema:startDate xsd:dateTime OR xsd:date OR xsd:gYearMonth OR xsd:gYear ;
+  schema:endDate xsd:dateTime OR xsd:date OR xsd:gYearMonth OR xsd:gYear ? ;
+  schema:text xsd:string ? ;
+  schema:description xsd:string ? ;
+  schema:location @app:UnnamedPlaceShape * ;
+  schema:attendee @app:BareNamePersonShape OR IRI ? ;
+  dcterms:subject IRI * ;
+}
+
+# An unnamed location: nested, no URI of its own (Specs §3.2).
+app:UnnamedPlaceShape EXTRA a {
+  a [schema:Place] ;
+  schema:name xsd:string ? ;
+  geo:lat xsd:decimal ;
+  geo:long xsd:decimal ;
+}
+
+# A bare-name attendee: nested, no URI of its own (Specs §3.3).
+app:BareNamePersonShape EXTRA a {
+  a [foaf:Person] ;
+  foaf:name xsd:string ;
+}
