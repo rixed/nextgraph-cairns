@@ -24,7 +24,7 @@ function toHash(r: Route): string {
         case "dev":
             return "#/dev";
         case "stub":
-            return `#/stub/${r.params!.label}`;
+            return `#/stub/${encodeURIComponent(r.params!.label)}`;
     }
 }
 
@@ -37,7 +37,7 @@ function fromHash(h: string): Route {
     if (parts[0] === "new") return { name: "editor" };
     if (parts[0] === "dev") return { name: "dev" };
     if (parts[0] === "stub" && parts[1])
-        return { name: "stub", params: { label: parts[1] } };
+        return { name: "stub", params: { label: decodeURIComponent(parts[1]) } };
     return { name: "browse" };
 }
 
