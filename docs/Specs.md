@@ -124,7 +124,7 @@ Precision is intrinsic to the literal's datatype, not a separate property:
 Rendering shows exactly the precision stored and never invents more.
 
 **Collation rule.** Each value expands to an interval `[earliest, latest]`. Sort by
-`earliest` ascending, ties broken by `latest` ascending, so coarser values sort before
+smallest `earliest` first, ties broken by largest `latest`, so coarser values sort before
 finer ones within the same span. Group headers use the coarsest unit shared by the group.
 
 **Derived spans for tags.** A tag's span is derived from the memories carrying it, rounded

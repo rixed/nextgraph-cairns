@@ -1,0 +1,11 @@
+PREFIX app: <did:ng:z:cairns/>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+# A tag: a concept in a scheme the app does not own (Specs §3.5).
+app:ConceptShape EXTRA a {
+  a [skos:Concept] ;
+  skos:prefLabel xsd:string ;
+  skos:inScheme IRI ? ;
+  skos:broader IRI * ;
+}

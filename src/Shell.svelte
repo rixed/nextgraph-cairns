@@ -1,0 +1,80 @@
+<script lang="ts">
+    import { router, type Route } from "./lib/router.svelte";
+    import { sessionPromise } from "./lib/ngSession";
+    import S22aTime from "./screens/S22aTime.svelte";
+    import S20Detail from "./screens/S20Detail.svelte";
+    import S21Editor from "./screens/S21Editor.svelte";
+    import Dev from "./screens/Dev.svelte";
+    import Stub from "./screens/Stub.svelte";
+
+    const screens = {
+        browse: S22aTime,
+        detail: S20Detail,
+        editor: S21Editor,
+        dev: Dev,
+        stub: Stub,
+    } as const;
+
+    const Current = $derived(screens[router.current.name]);
+    // Remount the screen when the route (not just a param mutation) changes.
+    const routeKey = $derived(
+        `${router.current.name}|${router.current.params?.doc ?? router.current.params?.label ?? ""}|${router.depth}`
+    );
+
+    // The five tabs of §6. Only Browse is real in M1.
+    const tabs: { label: string; icon: string; route?: Route }[] = [
+        { label: "Here & Now", icon: "📍" },
+        { label: "Browse", icon: "🗂️", route: { name: "browse" } },
+        { label: "People", icon: "👥" },
+        { label: "Heard about", icon: "💡" },
+        { label: "Me", icon: "🪪" },
+    ];
+
+    const tabClick = (t: (typeof tabs)[number]) =>
+        router.replaceRoot(
+            t.route ?? { name: "stub", params: { label: t.label } }
+        );
+
+    const isActive = (t: (typeof tabs)[number]) =>
+        t.route
+            ? router.current.name === t.route.name || router.current.name === "detail" || router.current.name === "editor"
+            : router.current.name === "stub" &&
+              router.current.params?.label === t.label;
+</script>
+
+<div class="min-h-dvh pb-24">
+    {#await sessionPromise}
+        <div class="p-10 text-center">
+            <span class="loading loading-spinner loading-lg"></span>
+            <p class="mt-4 opacity-70">Connecting to your NextGraph session…</p>
+        </div>
+    {:then}
+        {#key routeKey}
+            <Current />
+        {/key}
+
+        {#if router.current.name !== "editor"}
+            <button
+                class="btn btn-primary btn-circle btn-lg fixed bottom-20 right-4 z-20 shadow-lg"
+                aria-label="Capture a memory"
+                onclick={() => router.push({ name: "editor" })}
+            >
+                +
+            </button>
+        {/if}
+    {:catch error}
+        <div class="alert alert-error m-4">Session failed: {error}</div>
+    {/await}
+
+    <nav class="dock z-10">
+        {#each tabs as t (t.label)}
+            <button
+                class:dock-active={isActive(t)}
+                onclick={() => tabClick(t)}
+            >
+                <span class="text-lg">{t.icon}</span>
+                <span class="dock-label">{t.label}</span>
+            </button>
+        {/each}
+    </nav>
+</div>
