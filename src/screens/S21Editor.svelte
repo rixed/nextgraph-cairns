@@ -1,6 +1,10 @@
 <script lang="ts">
     // S-21 Memory capture / editor. Only a date is required, defaulting to now
     // at day precision.
+    //
+    // Deferred from milestone 2: offering a derived location when the media
+    // carry coordinates and none is claimed (§3.4). It needs somewhere to put
+    // the claim, so it belongs with locations.
     import { useShape } from "@ng-org/orm/svelte";
     import { MemoryShapeType } from "../shapes/orm/memoryShape.shapeTypes";
     import {

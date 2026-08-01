@@ -5,6 +5,13 @@
     // attachment, and the suppression of a derived association (§3.9).
     //
     // There is no delete: the app cannot remove a document it does not own.
+    //
+    // Deferred from milestone 2:
+    // - siblings page with buttons, where §6.2 asks for a swipe. Fine on a
+    //   desktop, wrong on the phone this is meant for.
+    // - "shows when its coordinates disagree with the memory's claim" (§3.4)
+    //   cannot be built until a memory can hold a claim — it arrives with
+    //   locations, and this screen is where the discrepancy surfaces.
     import { useShape } from "@ng-org/orm/svelte";
     import { MemoryShapeType } from "../shapes/orm/memoryShape.shapeTypes";
     import { useAllMedia } from "../lib/mediaFeed.svelte";

@@ -5,6 +5,10 @@
     //
     // Thumbnails only, never a full-size image shrunk to fit (§3.4, B-01);
     // media without one occupy a placeholder tile rather than vanishing.
+    //
+    // Deferred from milestone 2: §6.2 also opens this scoped from S-31, S-34
+    // and S-61, which are pre-set filters like the S-20 one below — nothing new
+    // here, they simply have no screen to be opened from yet.
     import { useShape } from "@ng-org/orm/svelte";
     import { useAllMedia, mediaReady } from "../lib/mediaFeed.svelte";
     import { MemoryShapeType } from "../shapes/orm/memoryShape.shapeTypes";

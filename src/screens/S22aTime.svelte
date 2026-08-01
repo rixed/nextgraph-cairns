@@ -1,6 +1,10 @@
 <script lang="ts">
     // S-22a Time projection: chronological list grouped per the §3.1 collation
-    // rule. M1: no filter bar yet; empty filter = whole archive.
+    // rule. No filter bar yet; empty filter = whole archive.
+    //
+    // Deferred: the S-22 shell proper — filter facets, selection, and the §4.4
+    // bulk actions — which every projection shares and none of them owns. It is
+    // a slice of its own rather than a gap in this screen.
     import { useShape } from "@ng-org/orm/svelte";
     import { OrmSubscription, normalizeScope } from "@ng-org/orm";
     import { MemoryShapeType } from "../shapes/orm/memoryShape.shapeTypes";
