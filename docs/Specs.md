@@ -37,8 +37,7 @@ top of a framework it treats as an operating system (§1.2).
    and no export feature either — the documents already belong to the user.
 8. **The app holds no binaries.** Photographs, clips, and audio are documents managed by
    other applications and referenced by URI. The app never uploads, never stores, never
-   copies, and never generates a binary — including at capture, which delegates to the
-   camera. It has no opinion on where media live.
+   copies, and never generates a binary. It has no opinion on where media live.
 9. **The app has no authority; the user has all of it.** Every document in the user's store
    is hers, whichever application wrote it. The app never grants access on its own account,
    and never treats a document as beyond reach merely because another application manages
@@ -204,10 +203,6 @@ Media have **no tags, people, place, or grouping of their own**; they inherit ev
 from the memory that references them. This is what lets the space and media projections
 colour photographs by companion, tag, or year while the memory stays the only thing the
 user edits — and it is only possible because the app never has to write to the media.
-
-**Capture delegates.** Taking a photograph from S-21 invokes the camera, which writes a
-document into the user's store. The app then references it, exactly as it would reference a
-photograph taken last year. There is no upload path, and no in-app camera roll.
 
 A memory's `schema:location` is a *claim* the user made; media coordinates are *evidence*
 another application recorded. Never merged:
@@ -439,7 +434,7 @@ documents that no app owns**. Appending is legitimate for any app; restructuring
 | S-01 | Here and Now | P0 |
 | S-02 | Search | P0 |
 | S-20 | Memory detail | P0 |
-| S-21 | Memory capture / editor | P0 |
+| S-21 | Memory editor | P0 |
 | S-22 | Browse — shell, filter, selection | P0 |
 | S-22a | · Time projection | P0 |
 | S-22b | · Space projection | P0 |
@@ -508,7 +503,7 @@ expenses, tracks. Sibling memories at the same place, with the same people, shar
 or about the same public event.
 *P1:* comments, share, who else remembers this.
 
-**S-21 Memory capture / editor** — P0
+**S-21 Memory editor** — P0
 The most-used surface, one tap from S-01. Only a date is required, defaulting to now at day
 precision. Optional: title, narrative, date with precision selector, locations (0..N —
 identified via S-32 or a dropped pin), attendees (0..N — contacts or typed names), tags,
@@ -517,8 +512,7 @@ type.
 
 Media are **selected, not uploaded**: a picker over the user's discoverable media documents,
 pre-filtered to the memory's span and location and showing what would be associated by
-overlap anyway, so the user attaches only the exceptions. A camera button delegates to the
-camera application and references whatever document it writes. Offers a derived location when
+overlap anyway, so the user attaches only the exceptions. Offers a derived location when
 media carry coordinates and none is claimed. Capturing
 at a recommended place or event marks that recommendation fulfilled.
 
@@ -883,10 +877,11 @@ than the fact that it was.
 | **B-06** | Atomic or best-effort writes across many documents | The framework SDK | Best-effort, used by bare-name promotion (§3.3) | Unknown until exercised | **Assigned** |
 | **B-07** | Access grants: granularity, itemisation, and partial-failure semantics | The framework | None — P1 depends on it entirely | Blocking for P1 | **Open** |
 | **B-08** | Full-text search across a user's documents | The framework; a per-app index; an indexing service | Per-app index over discovered documents | Unknown; likely the largest stopgap in the app | **Open** — S-02 assumes this exists |
-| **B-09** | Invoking another app and receiving the document it produced | The framework as an intent mechanism; the OS | None. Capture delegation (§3.4) assumes it | Blocking for camera capture | **Open** |
+| **B-09** | SUPPRESSED |
 | **B-10** | A convention for temporal precision | Ecosystem-wide convention; each app independently | Cairn's own datatype convention (§3.1) | Low, but divergence is costly later | **Open** — if the expense and hiking apps cannot express `gYear`, joins across apps degrade quietly |
 | **B-11** | Joining documents by time and location overlap | The framework as a query capability; each app | Cairn computes its own overlaps for media, bookings, expenses, tracks (§5) | Moderate and repeated per domain | **Open** — the repetition is itself the argument |
 | **B-12** | Discovering which sources provide what | The framework's type registry; per-app probing | Registry plus probing, reported in S-76 | Low | **Decided** — registry, as specified |
+| **B-13** | Reading a file whose blocks have not yet synced to this device | The framework | None yet — §8's "media unreachable" state is written blind | Unknown; the state exists but is untested | **Open** — spike 6 measured only local files, so whether `file_get` blocks, fails, or streams slowly is unknown |
 
 Two limits on the whole exercise. Exposing a boundary must never cost the user data — a gap
 can be revealed without being destructive. And it must never mean refusing to function: an app
