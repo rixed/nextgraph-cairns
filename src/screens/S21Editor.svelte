@@ -3,11 +3,17 @@
     // at day precision.
     import { useShape } from "@ng-org/orm/svelte";
     import { MemoryShapeType } from "../shapes/orm/memoryShape.shapeTypes";
-    import { parsePrecisionDate, today, type PrecisionDate } from "../lib/dates";
+    import {
+        parsePrecisionDate,
+        today,
+        type PrecisionDate,
+    } from "../lib/dates";
+    import { spanOf } from "../lib/media";
     import { createMemory, updateMemory } from "../lib/memories";
     import { router } from "../lib/router.svelte";
     import PrecisionDatePicker from "../components/PrecisionDatePicker.svelte";
     import TagMultiselect from "../components/TagMultiselect.svelte";
+    import MediaPicker from "../components/MediaPicker.svelte";
 
     const editedDoc = router.current.params?.doc;
     const memories = useShape(MemoryShapeType, "did:ng:i");
@@ -18,6 +24,7 @@
     let description = $state("");
     let text = $state("");
     let tags = $state<string[]>([]);
+    let media = $state<string[]>([]);
     let saving = $state(false);
     let error = $state("");
 
@@ -34,8 +41,19 @@
         description = m.description ?? "";
         text = m.text ?? "";
         tags = [...(m.subject ?? [])];
+        media = [...(m.subjectOf ?? [])];
         initialized = true;
     });
+
+    // The span drives the picker: change the date and the photographs that
+    // would associate on their own change with it, live.
+    const span = $derived(spanOf(start.lexical, end?.lexical));
+
+    const toggleMedia = (doc: string) => {
+        media = media.includes(doc)
+            ? media.filter((m) => m !== doc)
+            : [...media, doc];
+    };
 
     const toggleTag = (iri: string) => {
         tags = tags.includes(iri)
@@ -54,6 +72,7 @@
                 description: description.trim() || undefined,
                 text: text.trim() || undefined,
                 tags,
+                media,
             };
             if (editedDoc) {
                 await updateMemory(editedDoc, fields);
@@ -136,6 +155,8 @@
         </label>
 
         <TagMultiselect selected={tags} ontoggle={toggleTag} />
+
+        <MediaPicker {span} attached={media} ontoggle={toggleMedia} />
 
         {#if error}
             <div class="alert alert-error text-sm">{error}</div>

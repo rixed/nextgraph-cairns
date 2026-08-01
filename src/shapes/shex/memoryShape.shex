@@ -16,6 +16,21 @@ app:MemoryShape EXTRA a {
   schema:location @app:UnnamedPlaceShape * ;
   schema:attendee @app:BareNamePersonShape OR IRI ? ;
   dcterms:subject IRI * ;
+  # Media the user attached explicitly (§3.4). References to foreign documents:
+  # the app writes the link, never the media.
+  schema:subjectOf IRI * ;
+  # Cover: one of this memory's media, designated locally.
+  schema:image IRI ? ;
+  # Per-media notes. The app cannot write to a foreign media document, so a
+  # note about a photograph lives on the memory that references it (§3.4).
+  schema:comment @app:MediaNoteShape * ;
+}
+
+# A note the user wrote about one media: nested, no URI of its own.
+app:MediaNoteShape EXTRA a {
+  a [schema:Comment] ;
+  schema:about IRI ;
+  schema:text xsd:string ;
 }
 
 # An unnamed location: nested, no URI of its own (Specs §3.2).

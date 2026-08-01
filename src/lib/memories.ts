@@ -19,6 +19,8 @@ export interface MemoryFields {
     text?: string;
     /** Concept IRIs (dcterms:subject). */
     tags?: string[];
+    /** Media documents attached explicitly (schema:subjectOf, §3.4). */
+    media?: string[];
 }
 
 function fieldTriples(subject: string, f: MemoryFields): string {
@@ -36,6 +38,8 @@ function fieldTriples(subject: string, f: MemoryFields): string {
     if (f.text) t.push(`<${subject}> schema:text ${stringLiteral(f.text)}`);
     for (const tag of f.tags ?? [])
         t.push(`<${subject}> dcterms:subject <${tag}>`);
+    for (const m of f.media ?? [])
+        t.push(`<${subject}> schema:subjectOf <${m}>`);
     return t.join(" .\n") + " .";
 }
 
@@ -65,6 +69,7 @@ const EDITABLE = [
     "schema:description",
     "schema:text",
     "dcterms:subject",
+    "schema:subjectOf",
 ];
 
 /** Replace all editable fields of a memory with the given values. */

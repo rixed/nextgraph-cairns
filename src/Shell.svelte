@@ -1,16 +1,25 @@
 <script lang="ts">
     import { router, type Route } from "./lib/router.svelte";
     import { sessionPromise } from "./lib/ngSession";
+    import { bindRejections } from "./lib/rejections.svelte";
     import S22aTime from "./screens/S22aTime.svelte";
     import S20Detail from "./screens/S20Detail.svelte";
     import S21Editor from "./screens/S21Editor.svelte";
+    import S22cMedia from "./screens/S22cMedia.svelte";
+    import S51Media from "./screens/S51Media.svelte";
     import Dev from "./screens/Dev.svelte";
     import Stub from "./screens/Stub.svelte";
+
+    // The rejections document is bound here, once: it outlives every screen,
+    // and screens must never re-propose what the user rejected (§3.9).
+    bindRejections();
 
     const screens = {
         browse: S22aTime,
         detail: S20Detail,
         editor: S21Editor,
+        mediagrid: S22cMedia,
+        media: S51Media,
         dev: Dev,
         stub: Stub,
     } as const;
@@ -18,7 +27,7 @@
     const Current = $derived(screens[router.current.name]);
     // Remount the screen when the route (not just a param mutation) changes.
     const routeKey = $derived(
-        `${router.current.name}|${router.current.params?.doc ?? router.current.params?.label ?? ""}|${router.depth}`
+        `${router.current.name}|${router.current.params?.doc ?? router.current.params?.memory ?? router.current.params?.label ?? ""}|${router.depth}`
     );
 
     // The five tabs of §6. Only Browse is real in M1.

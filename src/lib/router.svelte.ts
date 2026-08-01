@@ -2,7 +2,14 @@
 // pushed screen can hand a value back to its caller — the picker-return seam
 // S-32/S-72 need later); location.hash mirrors the top for back-button support.
 
-export type RouteName = "browse" | "detail" | "editor" | "dev" | "stub";
+export type RouteName =
+    | "browse"
+    | "detail"
+    | "editor"
+    | "media" // S-51, params: doc = media document, from = memory that led here
+    | "mediagrid" // S-22c, params: memory = the memory scoping the filter
+    | "dev"
+    | "stub";
 
 export interface Route {
     name: RouteName;
@@ -21,6 +28,12 @@ function toHash(r: Route): string {
             return r.params?.doc
                 ? `#/edit/${encodeURIComponent(r.params.doc)}`
                 : "#/new";
+        case "media":
+            return `#/media/${encodeURIComponent(r.params!.doc)}`;
+        case "mediagrid":
+            return r.params?.memory
+                ? `#/media-of/${encodeURIComponent(r.params.memory)}`
+                : "#/media";
         case "dev":
             return "#/dev";
         case "stub":
@@ -35,6 +48,14 @@ function fromHash(h: string): Route {
     if (parts[0] === "edit" && parts[1])
         return { name: "editor", params: { doc: decodeURIComponent(parts[1]) } };
     if (parts[0] === "new") return { name: "editor" };
+    if (parts[0] === "media" && parts[1])
+        return { name: "media", params: { doc: decodeURIComponent(parts[1]) } };
+    if (parts[0] === "media") return { name: "mediagrid" };
+    if (parts[0] === "media-of" && parts[1])
+        return {
+            name: "mediagrid",
+            params: { memory: decodeURIComponent(parts[1]) },
+        };
     if (parts[0] === "dev") return { name: "dev" };
     if (parts[0] === "stub" && parts[1])
         return { name: "stub", params: { label: decodeURIComponent(parts[1]) } };

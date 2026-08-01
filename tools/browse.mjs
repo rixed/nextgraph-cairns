@@ -291,6 +291,120 @@ try {
                 : "FAIL: deleted memory still visible"
         );
         await shot(page, "m1-browse");
+    } else if (step === "m2") {
+        // Milestone 2 end-to-end: a memory dated inside the fixture corpus
+        // picks up photographs by overlap, opens one, attaches it, and
+        // suppresses another — the §3.9 "no" that must never be re-proposed.
+        const f = await loginAndGetFrame(page);
+        await settle(f);
+
+        console.log("=== capture a memory on 2019-08-14 ===");
+        await f.getByLabel("Capture a memory").click();
+        await f.locator('input[type="date"]').fill("2019-08-14");
+        await f.getByPlaceholder("Optional").fill("M2 media test");
+        await f.getByRole("button", { name: "Save", exact: true }).click();
+        await f
+            .locator("h2", { hasText: "Photographs" })
+            .waitFor({ timeout: 120000 });
+
+        const counts = async () => {
+            const t = await f.evaluate(() => document.body.innerText);
+            const m = t.match(/(\d+) attached · (\d+) by overlap/);
+            return m ? { attached: +m[1], overlap: +m[2] } : undefined;
+        };
+        let c = await counts();
+        console.log("[strip]", JSON.stringify(c));
+        console.log(
+            c && c.attached === 0 && c.overlap > 0
+                ? "OK: photographs associated by time overlap alone"
+                : "FAIL: no derived association"
+        );
+
+        console.log("=== the grid, scoped to this memory ===");
+        await f.getByRole("button", { name: "see all" }).click();
+        await f
+            .getByText("Photographs of this memory")
+            .waitFor({ timeout: 60000 });
+        const gridCount = await f.evaluate(
+            () => document.querySelectorAll(".grid button").length
+        );
+        console.log(`[grid] ${gridCount} tiles`);
+        await shot(page, "m2-grid");
+        await f.getByRole("button", { name: "← back" }).click();
+
+        console.log("=== open one, attach it ===");
+        await f.locator("section .w-24 button").first().click();
+        await f.getByText("Document").waitFor({ timeout: 60000 });
+        const detail = await f.evaluate(() => document.body.innerText);
+        console.log(
+            detail.includes("Taken") && detail.includes("did:ng:o:")
+                ? "OK: foreign metadata shown read-only"
+                : "FAIL: media detail missing metadata"
+        );
+        await shot(page, "m2-media-detail");
+        await f.getByRole("button", { name: "Attach to this memory" }).click();
+        await page.waitForTimeout(2000);
+        await f.getByRole("button", { name: "← back" }).click();
+        await page.waitForTimeout(2000);
+        c = await counts();
+        console.log("[strip after attach]", JSON.stringify(c));
+        console.log(
+            c && c.attached === 1
+                ? "OK: explicit attachment recorded on the memory"
+                : "FAIL: attachment not reflected"
+        );
+
+        console.log("=== suppress a derived association ===");
+        const before = c.overlap;
+        await f.locator("section .w-24 button").nth(1).click();
+        await f
+            .getByRole("button", { name: "Not from this memory" })
+            .click({ timeout: 60000 });
+        await page.waitForTimeout(2000);
+        c = await counts();
+        console.log("[strip after suppression]", JSON.stringify(c));
+        console.log(
+            c && c.overlap === before - 1
+                ? "OK: rejection removed it from the derived set"
+                : `FAIL: overlap went ${before} → ${c?.overlap}`
+        );
+
+        console.log("=== does the rejection survive a reload? ===");
+        await f.evaluate(() => location.reload());
+        await page.waitForTimeout(8000);
+        const f2 = page
+            .frames()
+            .find((fr) => fr.url().startsWith("http://localhost:4567"));
+        await waitSynced(f2);
+        await f2.locator("h2", { hasText: "Photographs" }).waitFor({
+            timeout: 120000,
+        });
+        const t = await f2.evaluate(() => document.body.innerText);
+        const m = t.match(/(\d+) attached · (\d+) by overlap/);
+        console.log("[strip after reload]", m?.[0]);
+        console.log(
+            m && +m[2] === c.overlap && +m[1] === 1
+                ? "OK: attachment and rejection both persisted"
+                : "FAIL: state did not survive the reload"
+        );
+        console.log("=== attach an exception through the editor picker ===");
+        await f2.getByRole("button", { name: "Edit" }).click();
+        await f2
+            .getByRole("button", { name: "Attach another photograph…" })
+            .click({ timeout: 60000 });
+        await f2.locator(".border.rounded button").first().click();
+        await f2.getByRole("button", { name: "Save", exact: true }).click();
+        await page.waitForTimeout(4000);
+        const after = (await f2.evaluate(() => document.body.innerText)).match(
+            /(\d+) attached · (\d+) by overlap/
+        );
+        console.log("[strip after picker]", after?.[0]);
+        console.log(
+            after && +after[1] === 2
+                ? "OK: a photograph outside the span attached from the editor"
+                : "FAIL: picker attachment not recorded"
+        );
+        await shot(page, "m2-strip");
     } else if (step === "headers") {
         const f = await loginAndGetFrame(page);
         await waitSynced(f);

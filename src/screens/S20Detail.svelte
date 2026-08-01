@@ -3,6 +3,7 @@
     import { useShape } from "@ng-org/orm/svelte";
     import { OrmSubscription, normalizeScope } from "@ng-org/orm";
     import { MemoryShapeType } from "../shapes/orm/memoryShape.shapeTypes";
+    import type { Memory } from "../shapes/orm/memoryShape.typings";
     import {
         parsePrecisionDate,
         formatPrecisionDate,
@@ -10,6 +11,7 @@
     import { deleteMemory } from "../lib/memories";
     import { router } from "../lib/router.svelte";
     import TagChips from "../components/TagChips.svelte";
+    import MediaStrip from "../components/MediaStrip.svelte";
 
     const doc = router.current.params!.doc;
     const memories = useShape(MemoryShapeType, "did:ng:i");
@@ -72,6 +74,8 @@
         {#if memory.text}
             <p class="whitespace-pre-wrap">{memory.text}</p>
         {/if}
+
+        <MediaStrip memory={memory as unknown as Memory} />
 
         <div class="flex gap-2 mt-4">
             <button

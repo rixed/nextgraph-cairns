@@ -1,7 +1,7 @@
 # This is the entry point for every build task: package.json deliberately
 # carries no scripts, so the tools are invoked directly here.
 
-.PHONY: all help install build run dev test check orm e2e clean
+.PHONY: all help install build run dev test check orm e2e e2e-m1 e2e-m2 seed-media clean
 
 PNPM = pnpm
 # Vite serves on this port for both dev and preview (see vite.config.ts).
@@ -20,9 +20,13 @@ help:
 	@echo
 	@echo '  - test: Run the unit tests'
 	@echo '  - check: Typecheck the app'
-	@echo '  - e2e: Drive milestone 1 through headless Chrome. Needs the'
-	@echo '         devstack up (see docs/Dev.md) and the app served'
-	@echo '         alongside, by `make run` or `make dev`'
+	@echo '  - e2e: Drive every milestone through headless Chrome, or'
+	@echo '         e2e-m1 / e2e-m2 for one of them. Needs the devstack up'
+	@echo '         (see docs/Dev.md) and the app served alongside, by'
+	@echo '         `make run` or `make dev`'
+	@echo '  - seed-media: Write COUNT fixture media documents into the'
+	@echo '         store, standing in for the applications that would'
+	@echo '         normally have taken the pictures (default 40)'
 	@echo
 	@echo '  - orm: Regenerate src/shapes/orm/ from the SHEX schemas'
 	@echo '  - install: Install dependencies'
@@ -54,8 +58,18 @@ check: node_modules
 orm: node_modules
 	$(PNPM) exec rdf-orm build --input ./src/shapes/shex --output ./src/shapes/orm
 
-e2e: node_modules
+e2e: e2e-m1 e2e-m2
+
+e2e-m1: node_modules
 	node tools/browse.mjs m1
+
+e2e-m2: node_modules
+	node tools/browse.mjs m2
+
+# Cairns never writes a media document; this fixture plays the app that would.
+COUNT = 40
+seed-media: node_modules
+	node tools/browse.mjs spike6 $(COUNT) 8
 
 clean:
 	rm -rf dist
