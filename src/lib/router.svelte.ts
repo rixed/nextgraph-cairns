@@ -8,6 +8,8 @@ export type RouteName =
     | "editor"
     | "media" // S-51, params: doc = media document, from = memory that led here
     | "mediagrid" // S-22c, params: memory = the memory scoping the filter
+    | "me" // S-70
+    | "sources" // S-76
     | "dev"
     | "stub";
 
@@ -34,6 +36,10 @@ function toHash(r: Route): string {
             return r.params?.memory
                 ? `#/media-of/${encodeURIComponent(r.params.memory)}`
                 : "#/media";
+        case "me":
+            return "#/me";
+        case "sources":
+            return "#/sources";
         case "dev":
             return "#/dev";
         case "stub":
@@ -56,6 +62,8 @@ function fromHash(h: string): Route {
             name: "mediagrid",
             params: { memory: decodeURIComponent(parts[1]) },
         };
+    if (parts[0] === "me") return { name: "me" };
+    if (parts[0] === "sources") return { name: "sources" };
     if (parts[0] === "dev") return { name: "dev" };
     if (parts[0] === "stub" && parts[1])
         return { name: "stub", params: { label: decodeURIComponent(parts[1]) } };

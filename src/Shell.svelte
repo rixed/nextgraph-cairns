@@ -7,6 +7,8 @@
     import S21Editor from "./screens/S21Editor.svelte";
     import S22cMedia from "./screens/S22cMedia.svelte";
     import S51Media from "./screens/S51Media.svelte";
+    import S70Me from "./screens/S70Me.svelte";
+    import S76Sources from "./screens/S76Sources.svelte";
     import Dev from "./screens/Dev.svelte";
     import Stub from "./screens/Stub.svelte";
 
@@ -20,6 +22,8 @@
         editor: S21Editor,
         mediagrid: S22cMedia,
         media: S51Media,
+        me: S70Me,
+        sources: S76Sources,
         dev: Dev,
         stub: Stub,
     } as const;
@@ -30,13 +34,13 @@
         `${router.current.name}|${router.current.params?.doc ?? router.current.params?.memory ?? router.current.params?.label ?? ""}|${router.depth}`
     );
 
-    // The five tabs of §6. Only Browse is real in M1.
+    // The five tabs of §6. Browse and Me are real; the rest are stubs.
     const tabs: { label: string; icon: string; route?: Route }[] = [
         { label: "Here & Now", icon: "📍" },
         { label: "Browse", icon: "🗂️", route: { name: "browse" } },
         { label: "People", icon: "👥" },
         { label: "Heard about", icon: "💡" },
-        { label: "Me", icon: "🪪" },
+        { label: "Me", icon: "🪪", route: { name: "me" } },
     ];
 
     const tabClick = (t: (typeof tabs)[number]) =>
@@ -51,7 +55,8 @@
               router.current.name === "editor" ||
               // The projections and what they open into are all Browse.
               router.current.name === "mediagrid" ||
-              router.current.name === "media"
+              router.current.name === "media" ||
+              (t.route.name === "me" && router.current.name === "sources")
             : router.current.name === "stub" &&
               router.current.params?.label === t.label;
 </script>
