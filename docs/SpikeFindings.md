@@ -1,7 +1,8 @@
 # Spike findings
 
 Answers to the technical risks identified before planning each milestone — spikes 1–4 before
-milestone 1, spikes 5–6 before milestone 2 (media and evidence) — measured
+milestone 1, spikes 5–6 before milestone 2 (media and evidence), spike 7 before milestone 3
+(space and places) — measured
 against a real NextGraph devstack (ngd + auth on `localhost:14400`, app served by Vite on
 `localhost:4567`, wallet `user5`). Spike code lives in `src/spikes/`, driven headless via
 Playwright (`tools/browse.mjs`; needs system Chrome, see Environment notes). SDK versions:
@@ -207,6 +208,54 @@ real entropy plus 160×120 thumbnails; a third of the descriptors deliberately c
 synced — block, fail, or stream slowly — is unmeasured, and it is exactly the case behind §8's
 "media unreachable" state. Needs a second device or a reset profile to answer.
 
+## Spike 7 — one predicate, a nested value or a reference
+
+**Question.** `schema:location` holds either a place with no URI of its own or a reference to
+a place document (§3.2), and `schema:attendee` does the same for people (§3.3). Spike 4 found
+that `shex-orm` rejects a *plural mixed union* (object OR IRI) and suggested an all-object
+union instead. Does that work — and what does the ORM do with a reference whose triples live
+in another document?
+
+**Answer: the all-object union compiles and then betrays you; model both as plain `IRI *`
+and join by hand.**
+
+- **Codegen accepts it.** `schema:location @app:UnnamedPlaceShape OR @app:PlaceRefShape *`
+  generates `location?: Set<SpikeUnnamedPlace | SpikePlaceRef>`, where the mixed union failed.
+- **But a union-typed property only reports what the ORM itself wrote.** A memory with two
+  `schema:location` triples inserted by `sparql_update` — one to a nested place in its own
+  graph, one to a place document — came back with **zero** locations. Adding a member through
+  the ORM made it appear; the SPARQL-written ones stayed invisible for the object's whole
+  lifetime. Since this app writes through SPARQL by necessity (spike 2: the ORM loses date
+  datatypes), a union-typed property would leave it unable to read back what it just wrote.
+- **A reference never resolves.** The member that did appear carried `name=undefined`,
+  `lat=undefined`, and — worth knowing — reported the **parent's** `@graph`, so `@graph`
+  cannot be used to tell a nested value from a reference.
+- **Without the union, everything works.** Read through `schema:location IRI *`, the same
+  memory reports both locations and its attendee, all written by SPARQL. A second
+  subscription on a place shape over the wildcard scope then resolves each IRI by hand,
+  identified places and nested ones alike:
+
+  ```
+  as plain IRIs: 2 location(s), 1 attendee(s)
+    another document → "Praça do Comércio"
+    in the memory's own document → "the beach below the road"
+  ```
+
+- **The nested/identified distinction survives** as a property of the IRI, not of the ORM: a
+  place whose IRI begins with the memory's document NURI is that memory's own, and anything
+  else is a reference to a place with shared identity. This matches spike 4's finding that
+  "no URI" is really a skolem IRI inside the memory's document.
+
+**Design decision.** `schema:location` and `schema:attendee` are `IRI *` — which also settles
+the plurality debt, since `schema:attendee` had been narrowed to 0..1 by the codegen limit
+against §3's 0..N. Places and people are read through their own shapes over the wildcard scope
+and joined by IRI. Unnamed places are written into the memory's own document with a derived
+IRI, exactly as §3.2 intends.
+
+**SDK improvement candidates.** A union-typed property should reflect triples written outside
+the ORM, and a referenced object whose graph is in scope could resolve rather than arriving
+empty.
+
 ## Environment notes
 
 - Wallets pin the broker's peer key: after `make reset`/re-key of the devstack, old
@@ -246,3 +295,14 @@ synced — block, fail, or stream slowly — is unmeasured, and it is exactly th
    resident blobs for a thousand-photograph archive), and **B-13** is new — the behaviour of
    `file_get` on a file whose blocks have not synced, which §8's "media unreachable" state
    cannot be written truthfully without.
+
+## What this means for milestone 3
+
+1. Model `schema:location` and `schema:attendee` as `IRI *`, and read places and people
+   through their own shapes over the wildcard scope, joining by IRI. No unions anywhere.
+2. An unnamed place is written into the memory's own document with an IRI derived from it,
+   which is what makes it unshareable in practice and recognisable in code.
+3. `schema:attendee` becomes 0..N as §3 always said; the 0..1 in the shape was a codegen
+   limit, not a decision.
+4. Whatever the app writes, it must be able to read back through the same subscription — the
+   trap spike 7 fell into is invisible until something written by SPARQL fails to appear.

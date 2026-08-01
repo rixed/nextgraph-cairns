@@ -740,6 +740,39 @@ try {
             "[text]",
             await f.evaluate(() => document.body.innerText.slice(0, 4000))
         );
+    } else if (step === "spike7") {
+        // One predicate, two kinds of value: does a cross-document reference
+        // survive the ORM, and can the two branches be told apart?
+        const f = await loginAndGetFrame(page);
+        await f.evaluate(() => (location.hash = "#/dev"));
+        await page.waitForTimeout(1000);
+        await f.getByRole("tab", { name: "7 · locations" }).click();
+        await settle(f);
+        await click(f, "1 · place + person docs");
+        await waitForLog(f, "place + person documents", 120000);
+        await click(f, "2 · memory with both");
+        await waitForLog(f, "memory with both kinds", 120000);
+        await page.waitForTimeout(6000);
+        await click(f, "3 · what the ORM returns");
+        await page.waitForTimeout(2000);
+        await click(f, "3b · read as plain IRIs");
+        await page.waitForTimeout(2000);
+        await click(f, "4 · add a reference via ORM");
+        await page.waitForTimeout(4000);
+        await click(f, "3 · what the ORM returns");
+        await page.waitForTimeout(2000);
+        await click(f, "4b · nested via ORM");
+        await page.waitForTimeout(5000);
+        await click(f, "3 · what the ORM returns");
+        await page.waitForTimeout(2000);
+        await click(f, "4c · join by hand");
+        await page.waitForTimeout(2000);
+        console.log("[log]\n" + (await readLog(f)));
+        if (!process.env.KEEP) {
+            await click(f, "5 · clean up");
+            await page.waitForTimeout(3000);
+            console.log("[cleanup] spike documents emptied");
+        }
     } else if (step === "cleanup") {
         // node browse.mjs cleanup "<title>" [keep] — remove residue left by
         // earlier runs, through the app's own delete.

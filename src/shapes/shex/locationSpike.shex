@@ -1,0 +1,57 @@
+PREFIX app: <did:ng:z:cairns/>
+PREFIX schema: <https://schema.org/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX geo: <http://www.w3.org/2003/01/geo/wgs84_pos#>
+
+# Spike 7 — can one predicate carry both a nested object and a reference?
+#
+# Specs §3.2 and §3.3 want schema:location and schema:attendee to hold either a
+# nested value with no URI of its own, or a reference to a document that has
+# one. Spike 4 found that shex-orm rejects a *plural* mixed union (object OR
+# primitive), which is exactly that shape — so this tries the all-object form
+# it suggested instead: both branches are shapes, and the reference branch is a
+# shape whose subject lives in another document.
+
+app:SpikeMemoryShape EXTRA a {
+  a [app:Memory] ;
+  schema:name xsd:string ? ;
+  schema:location @app:SpikeUnnamedPlaceShape OR @app:SpikePlaceRefShape * ;
+  schema:attendee @app:SpikeBareNameShape OR @app:SpikePersonRefShape * ;
+}
+
+# Nested, no URI of its own (§3.2): coordinates without shared identity.
+app:SpikeUnnamedPlaceShape EXTRA a {
+  a [schema:Place] ;
+  schema:name xsd:string ? ;
+  geo:lat xsd:decimal ;
+  geo:long xsd:decimal ;
+}
+
+# A reference to a place that does have identity — its triples live in its own
+# document, not in the memory's graph.
+app:SpikePlaceRefShape EXTRA a {
+  a [schema:Place] ;
+  schema:name xsd:string ;
+}
+
+app:SpikeBareNameShape EXTRA a {
+  a [foaf:Person] ;
+  foaf:name xsd:string ;
+}
+
+app:SpikePersonRefShape EXTRA a {
+  a [foaf:Person] ;
+  foaf:name xsd:string ;
+  schema:image IRI ? ;
+}
+
+# The alternative the first round pointed at: no union at all. Every location
+# is a reference, including one that happens to live inside the memory's own
+# document, and the app joins to a place shape by IRI.
+app:SpikeMemoryRefsShape EXTRA a {
+  a [app:Memory] ;
+  schema:name xsd:string ? ;
+  schema:location IRI * ;
+  schema:attendee IRI * ;
+}
