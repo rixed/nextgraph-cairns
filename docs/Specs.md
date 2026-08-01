@@ -42,7 +42,7 @@ top of a framework it treats as an operating system (§1.2).
    is hers, whichever application wrote it. The app never grants access on its own account,
    and never treats a document as beyond reach merely because another application manages
    it. It asks, itemises, and acts on instruction.
-10. **Read foreign data, write only what we own** (§5). Absence of a source is normal and
+10. **Read foreign data, write only what we own** (§5). Absence of a shape is normal and
     never blocks a screen.
 11. **Missing capabilities are undecided boundaries, not faults.** Cairn is built alongside
     the framework and the rest of the ecosystem, so when the app needs something nobody
@@ -104,7 +104,7 @@ app owns.
 | Rating | `schema:review` → `schema:Review` | Optional, nested |
 | Public event | `schema:about` → `schema:Event` | Optional, §4.3 |
 | Cover | `schema:image` | Optional; a reference to one of its media |
-| Provenance | `prov:wasGeneratedBy` | Only when discovered from another source |
+| Provenance | `prov:wasGeneratedBy` | Only when the memory was derived from another document |
 
 No durations and no clock times. A memory needing clock precision has an `xsd:dateTime`
 date literal.
@@ -195,7 +195,7 @@ it (§8), but it will not fetch a full-size resource to shrink it.
 The requirement is deliberate rather than a limitation to be engineered around: somebody in
 this ecosystem should publish derived representations, and it is not yet settled who
 (**B-01**). The placeholder stays unobtrusive for the user — an ordinary empty tile, not an
-accusation — while a development build marks it and its source, so the gap stays visible to
+accusation — while a development build marks it and the shape it came from, so the gap stays visible to
 whoever is deciding the boundary. Registering it is what makes the fallback legitimate;
 letting it quietly become permanent is what would not be.
 
@@ -387,7 +387,7 @@ may select memories and then:
 | Action | Result |
 |---|---|
 | **Tag these** | Adds one or more concepts to every selected memory. The common case. |
-| **Write a memory about these** | Ensures the selection shares a tag, then creates a new memory carrying that tag and opens S-21 with a derived date span. The deliberate case. |
+| **Write a memory about these** | The action opens S-21 with a derived date span, the union of the selection's places and attendees as suggestions, and a tag offered — pre-filled when the selection already shares one, suggested when not, skippable. |
 | Untag, retag | Bulk edit of existing tags |
 | Reattach media | Point selected media at a different memory — changes references, moves nothing (media projection only) |
 | Delete | With the framework's recovery behind it (§1.2) |
@@ -397,24 +397,26 @@ tags; only the second produces a memory.
 
 ---
 
-## 5. Foreign data
+## 5. Shapes the app reads
 
-Read when present. None required. None gets a management UI.
+The store contains documents, not applications' data. The app recognises certain shapes and uses them where present; it writes only the two noted below. A document may match several shapes at once and contributes to each — an image descriptor that also asserts a `schema:Trip` is read as both.
 
-| Domain | Read | Write | Absent |
+Two of these shapes are shared user-owned documents that no application owns: the concept scheme and the person records. Any app may append to them; none may restructure them. This is the only place Cairn writes outside its own memories, and the licence is narrow deliberately — appending a concept the user named is a different act from reorganising a vocabulary other apps depend on.
+
+| Shape | Read | Write | Absent |
 |---|---|---|---|
-| **Bookings** | `schema:*Reservation` — flights, lodging, trains, restaurants, tickets, with exact `xsd:dateTime` and confirmation numbers. Shown on Here-and-Now when imminent, and on a memory by date overlap. | Nothing | No logistics anywhere, no prompt |
-| **Expenses** | Amounts, currencies as recorded, dates, categories, locations. Joined to a memory by date and location overlap. Displayed as recorded; never converted. | Nothing | No spend figures |
-| **Tracks** | `gsp:Geometry` / GPX. A map layer, and shown on a memory when times overlap. | Nothing | No track layer |
-| **Media** | `schema:ImageObject` / `VideoObject` / `AudioObject` — `contentUrl`, `thumbnail`/`thumbnailUrl`, EXIF time and coordinates, dimensions, caption. Associated with a memory explicitly or by time overlap (§3.4). | Nothing. Annotations, cover designation, and suppressions live in the memory. | The media projection is empty and the map loses its high-zoom detail; everything else works. A source without thumbnails yields points and placeholders, not pictures. |
-| **Tags** | `skos:ConceptScheme` + concepts | **Appends concepts only** — never renames, merges, deletes | Falls back to a locally-owned scheme, offers hand-over if a manager appears |
-| **Contacts** | `foaf:Person` / `vcard:Individual` | **Appends contacts only**, on promotion | Falls back to a locally-owned contacts document |
-| **Places, events** | External gazetteers and event sources for identity and metadata | Mints one only when no external match exists | Custom and unnamed only; app still complete |
-| **Calendar** | `schema:Event` as capture hints for the date picker | Nothing | No suggestions |
+| **Reservation-shaped** | `schema:*Reservation` — flights, lodging, trains, restaurants, tickets, with exact `xsd:dateTime` and confirmation numbers. Shown on Here-and-Now when imminent, and on a memory by date overlap. | Nothing | No logistics anywhere, no prompt |
+| **Expense-shaped** | Amounts, currencies as recorded, dates, categories, locations. Joined to a memory by date and location overlap. Displayed as recorded; never converted. | Nothing | No spend figures |
+| **Geometry-shaped** | `gsp:Geometry` / GPX. A map layer, and shown on a memory when times overlap. | Nothing | No track layer |
+| **Media-descriptor-shaped** | `schema:ImageObject` / `VideoObject` / `AudioObject` — `contentUrl`, `thumbnail`/`thumbnailUrl`, EXIF time and coordinates, dimensions, caption. Associated with a memory explicitly or by time overlap (§3.4). | Nothing. Annotations, cover designation, and suppressions live in the memory. | The media projection is empty and the map loses its high-zoom detail; everything else works. Low thumbnail coverage across image descriptors yields points and placeholders rather than pictures. |
+| **Concept scheme** (shared, appendable) | `skos:ConceptScheme` + concepts | **Appends concepts only** — never renames, merges, deletes | Falls back to a locally-owned scheme, offers hand-over if a manager appears |
+| **Person-shaped** (shared, appendable) | `foaf:Person` / `vcard:Individual` | **Appends contacts only**, on promotion | Falls back to a locally-owned contacts document |
+| **Place- and event-shaped** | Externally identified places and events (`wd:`, OSM) for identity and metadata | Mints one only when no external match exists | Custom and unnamed only; app still complete |
+| **Event-shaped, dated** | `schema:Event` as capture hints for the date picker | Nothing | No suggestions |
 
-**Two rules.** Every foreign section is *conditional* — present when data exists, silently
-absent otherwise, never an empty state advertising an app the user does not have. And
-foreign objects are shown but never edited: the only outbound action is to open the owning
+**Two rules.** Every data-shape section is *conditional* — present when data exists, silently
+absent otherwise, never an empty state advertising a shape the store does not contain. And
+discovered objects are shown but never edited: the only outbound action is to open the owning
 app.
 
 Tags and contacts are the exceptions where this app writes, because both are **user-owned
@@ -452,7 +454,7 @@ documents that no app owns**. Appending is legitimate for any app; restructuring
 | S-71 | Stats | P0 |
 | S-72 | Tags | P0 |
 | S-75 | Settings | P0 |
-| S-76 | Data sources | P0 |
+| S-76 | What Cairn can see | P0 |
 | S-80 | Unavailable reference | P0 |
 | X-01 | Share sheet | P1 |
 | X-02 | Access review | P1 |
@@ -468,7 +470,7 @@ documents that no app owns**. Appending is legitimate for any app; restructuring
 
 **S-00 Onboarding** — P0
 Name and locale confirmation. Creates profile, preferences, empty recommendations list.
-Runs the data-source census and reports what it found, which doubles as the first
+Runs the shape census and reports what it found, which doubles as the first
 explanation of what the app is. No account, no login.
 
 **S-01 Here and Now** — P0
@@ -476,7 +478,7 @@ Organised by proximity and imminence rather than by date alone. Cards, in priori
 
 1. A recommendation whose event is happening now or soon **and** is nearby — the app's
    best moment (§4.2).
-2. A booking within the next day or two, from a foreign source.
+2. A reservation-shaped document within the next day or two.
 3. A recommended place nearby, whether or not it has a date.
 4. A memory captured recently and still thin, offering to fill it in.
 5. This day in previous years.
@@ -577,14 +579,14 @@ Referent via S-32 (place) or event search, source (contact, URL, or free text), 
 event dates if the referent is a new event, tags, note.
 
 **S-51 Media detail** — P0
-Full-bleed viewer, swipe between siblings in the current filter. Caption, capture time,
-coordinates, dimensions, referencing memory, and which application owns the document. All
-foreign metadata is read-only; the user may add a local note, designate the media as a
-memory's cover, attach or detach it, or suppress a derived association (§3.9). Shows when its
-coordinates disagree with the memory's claim, resolvable on the memory's side only.
+Full-bleed viewer, swipe between siblings in the current filter. Caption,
+capture time, coordinates, dimensions and referencing memory. All foreign
+metadata is read-only; the user may add a local note, designate the media as a
+memory's cover, attach or detach it, or suppress a derived association (§3.9).
+Shows when its coordinates disagree with the memory's claim, resolvable on the
+memory's side only.
 
-There is no delete: the app cannot remove a document it does not own, and offers to open the
-owning application instead.
+There is no delete: Cairns is neither a file or media manager.
 
 **S-60 People** — P0
 Contacts ordered by memory count or recency, each showing how many memories they appear in.
@@ -621,19 +623,27 @@ units come from the device, and currency is unnecessary because foreign amounts 
 displayed as recorded and never converted. The screen exists because it is where later
 features land — proximity notifications, sharing defaults, publication settings.
 
-**S-76 Data sources** — P0
-A census of the RDF data this app can discover and what it would do with each source: what
-it provides, when it was last read, a toggle. For media sources it also reports **whether
-thumbnails are available**, since that alone decides whether the map and the media grid show
-pictures or placeholders (§3.4).
+**S-76 What Cairn can see** — P0
+A census of the store as this app understands it: which shapes it recognises,
+how many documents match each, and what coverage the properties it actually
+uses have — how many image descriptors carry a thumbnail, how many carry EXIF
+coordinates, how many expense records carry a location. Coverage is the useful
+figure, because it predicts directly whether the map and the media grid will be
+rich or sparse.
 
-Signals at the **source** level, not the item level: a source that publishes no thumbnails is
-worth knowing about, whereas one photograph missing one is just data. In a development build
-this screen also lists which responsibilities the app is currently borrowing — a locally-owned
-tag scheme, a locally-owned contacts document — cross-referenced to Appendix A. Nothing about storage, bytes, caches, or
-replication — the framework owns those (§1.2). This is the screen that makes the framework
-legible, so it is a demo surface as much as a settings surface, and it is where sharing
-lands in P1.
+No notion of which application wrote anything: documents belong to the user,
+not to the app that created them, and the app has no business asking. No
+toggles either — the store is the store, and per-shape switches would be too
+coarse to want. Filtering belongs in Browse.
+
+Nothing about storage, bytes, caches, or replication; the framework owns those
+(§1.2). In a development build the screen also lists shapes the app looks for
+and does not find, and which responsibilities it is currently borrowing — a
+locally-owned concept scheme, a locally-owned contacts document —
+cross-referenced to Appendix A.
+
+This is the screen that makes the federated model legible, so it is a demo
+surface as much as a settings surface.
 
 **S-80 Unavailable reference** — P0
 A required rendering state, inline and full-screen. Distinguishes deleted, not-yet-synced,
@@ -665,7 +675,7 @@ via S-32. From X-03.
 | From | To | Trigger |
 |---|---|---|
 | S-00 | S-01 | finish onboarding |
-| S-00 | S-76 | review discovered sources |
+| S-00 | S-76 | review what Cairn can see |
 | S-01 | S-21 | quick capture |
 | S-01 | S-20 | tap a thin or on-this-day memory |
 | S-01 | S-31 | tap a nearby recommended place |
@@ -745,9 +755,8 @@ via S-32. From X-03.
 | S-72 | *caller* | return concepts to a bulk tag action |
 | S-72 | *foreign app* | manage the scheme, when foreign |
 | S-75 | S-72, S-76 | rows |
-| S-76 | *foreign app* | tap a source |
 | S-80 | *caller* | dismiss |
-| S-80 | S-76 | "not synced" → check sources |
+| S-80 | S-76 | "not synced" → check what Cairn can see |
 
 ### 7.2 P1 edges
 
@@ -788,7 +797,7 @@ Every one attaches to an existing P0 screen. No P0 screen is restructured.
 5. **Foreign sections are already conditional**, so shared-but-unavailable data reuses the
    rendering path built for foreign-app-absent.
 6. **Media are already references**, so the unreadable state for a shared memory's media is
-   the same rendering path as media-source-absent, and itemised granting reuses the
+   the same rendering path as no-media-shape-present, and itemised granting reuses the
    suppression gesture (§3.9).
 7. **Selection already exists in Browse**, so sharing an ad-hoc set is a new action on an
    existing gesture rather than a new screen.
@@ -803,7 +812,7 @@ Every one attaches to an existing P0 screen. No P0 screen is restructured.
 | First-run empty | S-22a–c, S-40, S-60, S-71 | Distinct from ordinary empty; may point at S-76 |
 | Filter yields nothing | S-22a–c | Names the facet most likely responsible and offers to drop it |
 | Nothing here, nothing now | S-01 | Falls back to on-this-day, then to a capture prompt; never blank |
-| Foreign source absent | S-01, S-20, S-22b, S-72 | Section silently absent — never an empty state advertising another app |
+| Shape absent from the store | S-01, S-20, S-22b, S-72 | Section silently absent — never an empty state advertising another app |
 | Media unreachable | S-20, S-22b, S-22c, S-51 | Placeholder at the media's known dimensions if recorded, naming the cause; never a broken image |
 | Media without thumbnail | S-22b, S-22c | A plain map marker and a placeholder tile; counted, never hidden, never fetched full-size to shrink |
 | Broken reference | anything following a cross-document link | S-80 inline; never blanks the screen |
@@ -869,7 +878,7 @@ than the fact that it was.
 
 | ID | Capability needed | Candidate owners | Cairn's stopgap | Cost | Status |
 |---|---|---|---|---|---|
-| **B-01** | Derived media representations (thumbnails, and by extension previews and transcodes) | Camera app; a media-library app; the framework as a derived-representation service; a convention binding anyone publishing an `ImageObject` | Plain map markers and placeholder tiles (§3.4) | Low | **Open** |
+| **B-01** | Derived media representations (thumbnails, and by extension previews and transcodes) | Whatever writes image descriptors; the framework as a derived-representation service; a convention binding any document asserting an `ImageObject` | Plain map markers and placeholder tiles (§3.4) | Low | **Open** |
 | **B-02** | A shared tag vocabulary several apps read and extend | A dedicated tag manager; a user-owned document no app owns; a framework-level registry | Locally-owned SKOS scheme, append-only, with hand-over if a manager appears | Low so far; hand-over undesigned | **Decided in principle** — user-owned document, any app may append, none may restructure. The exemplar for B-03 and B-04. |
 | **B-03** | Person identity and contacts | A contacts app; a user-owned document; a framework identity service (which P1 needs anyway for remote identity) | Locally-owned contacts document, appended on promotion | Low in P0 | **Open** — B-02's answer probably applies, but P1 identity raises the stakes |
 | **B-04** | Place identity and gazetteer reconciliation | External gazetteers (Wikidata, OSM); a places app; per-app minting with `owl:sameAs` | Mint a place only when no external match exists | Low | **Open** — leaning to B-02's shape |
@@ -880,7 +889,7 @@ than the fact that it was.
 | **B-09** | SUPPRESSED |
 | **B-10** | A convention for temporal precision | Ecosystem-wide convention; each app independently | Cairn's own datatype convention (§3.1) | Low, but divergence is costly later | **Open** — if the expense and hiking apps cannot express `gYear`, joins across apps degrade quietly |
 | **B-11** | Joining documents by time and location overlap | The framework as a query capability; each app | Cairn computes its own overlaps for media, bookings, expenses, tracks (§5) | Moderate and repeated per domain | **Open** — the repetition is itself the argument |
-| **B-12** | Discovering which sources provide what | The framework's type registry; per-app probing | Registry plus probing, reported in S-76 | Low | **Decided** — registry, as specified |
+| **B-12** | Discovering which shapes the store contains | The framework's type registry; shape probing by each app | Registry plus probing, reported in S-76 | Low | **Decided** — registry, as specified |
 | **B-13** | Reading a file whose blocks have not yet synced to this device | The framework | None yet — §8's "media unreachable" state is written blind | Unknown; the state exists but is untested | **Open** — spike 6 measured only local files, so whether `file_get` blocks, fails, or streams slowly is unknown |
 
 Two limits on the whole exercise. Exposing a boundary must never cost the user data — a gap
