@@ -1,6 +1,7 @@
 # Spike findings
 
-Answers to the four technical risks identified before planning milestone 1, measured
+Answers to the technical risks identified before planning each milestone — spikes 1–4 before
+milestone 1, spikes 5–6 before milestone 2 (media and evidence) — measured
 against a real NextGraph devstack (ngd + auth on `localhost:14400`, app served by Vite on
 `localhost:4567`, wallet `user5`). Spike code lives in `src/spikes/`, driven headless via
 Playwright (`tools/browse.mjs`; needs system Chrome, see Environment notes). SDK versions:
@@ -133,6 +134,79 @@ that shape. Options for milestone 1: model `schema:location` as an all-object un
 shape/SPARQL. To be decided during milestone-1 planning; the ORM's
 `parent.children.add({"@id": iri})` linkage idiom suggests the all-object route.
 
+## Spike 5 — the rejections JSON document
+
+**Question.** Every rejection the user makes (§3.9) goes in one app-private JSON document,
+keyed by the URIs it concerns. Nothing in the app touches a non-graph document yet: can such
+a document be found again, do URI-shaped keys survive, does it round-trip?
+
+**Answer: yes on every count, and it is the cheapest thing measured so far.**
+
+- **A discrete document has a graph part too, and it accepts triples.** SPARQL sees only the
+  RDF side, so an Automerge document would otherwise be unfindable after a reload. Tagging it
+  `<doc> a did:ng:z:cairns/Rejections` in its own graph and finding it with the ordinary
+  `SELECT ?doc WHERE { GRAPH ?doc { ?s a … } }` idiom works — same pattern as every graph
+  document the app already creates.
+- **URI-shaped object keys survive.** `suppressedMedia["did:ng:o:…:v:…"] = ["did:ng:j:…:k:…"]`
+  round-trips unchanged, including a key containing `/` and `#`, so §3.9's "keyed by the URIs
+  they concern" can be taken literally rather than encoded around.
+- **Array items get an engine-assigned `@id`**, replacing the temporary `tmp-N` seen locally
+  — the `{#each}` key, as `NextGraph.md` §7 says.
+- **`DiscreteOrmSubscription.getOrCreate` pools per document**: two callers receive the *same*
+  signal object, so two screens reading suppressions share state without any app-side cache.
+- **Persistence verified in a fresh session**, not merely a re-subscription: after a full
+  reload the document still held its 200 bulk keys, its suppression entry and its dismissal.
+
+| Operation | Time |
+|---|---|
+| `doc_create` (Automerge / `data:json`) | 109 ms |
+| Tagging its graph part, then finding it by SPARQL | 4 ms |
+| `DiscreteOrmSubscription.getOrCreate` + `readyPromise` | 7 ms |
+| Writing three rejection entries | 2 ms |
+| 200 keyed entries in one transaction | 5 ms |
+| Re-opening after `close()` | 3 ms |
+
+**Untested:** concurrent writers on two devices. Suppressions append to a per-memory array, and
+Automerge merges concurrent inserts, so the merge-safe shape is already the one in use; a
+last-writer-wins scalar (`declinedDerivedLocation[memory] = true`) is idempotent anyway.
+
+## Spike 6 — thumbnails at grid scale
+
+**Question.** `file_get` streams a whole file: no server-side thumbnail, no partial fetch
+(B-01). S-22c wants a screenful of tiles at once. What does that cost, does concurrency help,
+and how much worse is it if the app ignores the "never fetch full-size to shrink" rule?
+
+**Answer: time is not the binding constraint — memory is.** Everything is a local read, so
+the rule the spec mandates buys about **43× in bytes**, not in latency.
+
+Measured over a fixture corpus written by `src/spikes/mediaFixture.ts` (1024×768 JPEGs of
+real entropy plus 160×120 thumbnails; a third of the descriptors deliberately carry no
+`schema:thumbnailUrl`):
+
+| Operation | 46 descriptors | 106 descriptors |
+|---|---|---|
+| SPARQL discovery of every image descriptor | 11 ms | 20 ms |
+| Thumbnails, sequential (30 / 70 of them) | 1556 ms — 52 ms each | 1510 ms — 22 ms each |
+| Same, 8 fetches in flight | 38 ms — 1 ms each | 71 ms — 1 ms each |
+| **Full-size instead**, 8 in flight | 1297 ms, 21.4 MB, 40 MB heap | 1535 ms, 49.4 MB, 62 MB heap |
+| Fixture write cost per media document | ~230 ms | ~300 ms |
+
+- **Concurrency is what matters for latency**: 52 ms per thumbnail sequentially, 1 ms with
+  eight in flight. The bridge pipelines rather than thrashing.
+- **Full-size costs 466 kB per image against 10.7 kB per thumbnail.** At 106 photographs
+  that is 49 MB of blobs and a 62 MB heap; a thousand-photograph archive would be about half
+  a gigabyte of resident data for one screen. This is the number behind B-01, and it says the
+  grid must fetch thumbnails only, bound its concurrency, and revoke blob URLs it scrolls past.
+- **Chunk reassembly is sound**: all 106 assembled blobs decoded at exactly 1024×768, none
+  broken or truncated. Files above the 1 MiB chunk size were not exercised.
+- **Placeholders are the common case, not the exception** — a third of this corpus has no
+  thumbnail, which is roughly what an ecosystem with no thumbnail generator produces.
+
+**Boundary register (B-13, new).** Every file measured here was written on the same device, so
+`file_get` read blocks that were already local. What it does when a file's blocks have not yet
+synced — block, fail, or stream slowly — is unmeasured, and it is exactly the case behind §8's
+"media unreachable" state. Needs a second device or a reset profile to answer.
+
 ## Environment notes
 
 - Wallets pin the broker's peer key: after `make reset`/re-key of the devstack, old
@@ -153,3 +227,22 @@ shape/SPARQL. To be decided during milestone-1 planning; the ORM's
    `file_get` → blob URL. A fixture script stands in for the missing camera app.
 4. Nested objects work; add explicit orphan cleanup on removal, and pick the location
    union workaround during planning.
+
+## What this means for milestone 2
+
+1. `lib/rejections.ts` is thin: one Automerge document, tagged in its graph part so SPARQL
+   finds it, `DiscreteOrmSubscription` for reads and writes, URI keys as §3.9 describes.
+   Pooling means screens need no shared cache of their own.
+2. The media grid fetches **thumbnails only**, with about eight fetches in flight, and revokes
+   blob URLs as tiles leave the viewport. Full-size resolution belongs to S-51, one image at a
+   time.
+3. Placeholder tiles are a main path, not an edge case: a third of realistic data has no
+   thumbnail.
+4. `src/spikes/mediaFixture.ts` plays the applications Cairns does not have — there is no
+   camera button and never will be, so media reach the store only through other apps. Seed a
+   corpus with `node tools/browse.mjs spike6 <count> <concurrency>`; `<count> 0` re-measures
+   the existing corpus without writing more documents into the shared devstack store.
+5. Appendix A: **B-01** now has a number behind it (43× the bytes, and half a gigabyte of
+   resident blobs for a thousand-photograph archive), and **B-13** is new — the behaviour of
+   `file_get` on a file whose blocks have not synced, which §8's "media unreachable" state
+   cannot be written truthfully without.

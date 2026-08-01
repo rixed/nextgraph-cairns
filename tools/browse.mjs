@@ -133,6 +133,33 @@ async function waitForLog(frame, needle, timeoutMs = 120000) {
     throw new Error(`timeout waiting for log to contain: ${needle}`);
 }
 
+/**
+ * Wait until the engine answers queries. After login it syncs every repo before
+ * responding, which with a few hundred documents takes about a minute
+ * (SpikeFindings, spike 1) — polling beats guessing a sleep.
+ */
+async function settle(frame, timeoutMs = 300000) {
+    const t0 = Date.now();
+    while (Date.now() - t0 < timeoutMs) {
+        const ok = await frame
+            .evaluate(() =>
+                Promise.race([
+                    window
+                        .spikeSelect("SELECT ?s WHERE { GRAPH ?g { ?s ?p ?o } } LIMIT 1")
+                        .then(() => true),
+                    new Promise((r) => setTimeout(() => r(false), 15000)),
+                ])
+            )
+            .catch(() => false);
+        if (ok) {
+            console.log(`[settle] engine responsive after ${Math.round((Date.now() - t0) / 1000)}s`);
+            return;
+        }
+        await frame.page().waitForTimeout(3000);
+    }
+    throw new Error("engine never became responsive");
+}
+
 const step = process.argv[2] ?? "inspect";
 
 const { ctx, page } = await launch();
@@ -463,6 +490,114 @@ try {
         });
         console.log("[img naturalSize]", JSON.stringify(imgOk));
         await shot(page, "spike3");
+    } else if (step === "spike5") {
+        // The rejections JSON document (§3.9): findability, key encoding,
+        // round trip, two subscriptions, bulk cost.
+        const f = await loginAndGetFrame(page);
+        await f.evaluate(() => (location.hash = "#/dev"));
+        await page.waitForTimeout(1000);
+        await f.getByRole("tab", { name: "5 · json doc" }).click();
+        await settle(f);
+        const steps = [
+            ["1 · create + tag", "doc_create(Automerge"],
+            ["2 · find by SPARQL", "SPARQL found"],
+            ["3 · subscribe", "subscribed;"],
+            ["4 · write rejections", "wrote rejections"],
+            ["5 · append to a key", "after append:"],
+            ["6 · reopen", "reopened in"],
+            ["7 · two subscriptions", "pooled to the same object"],
+            ["8 · 200 entries", "one transaction:"],
+        ];
+        for (const [label, needle] of steps) {
+            await click(f, label);
+            await waitForLog(f, needle, 120000).catch((e) =>
+                console.log(`(${label}: ${e.message})`)
+            );
+            await page.waitForTimeout(500);
+        }
+        console.log("[log]\n" + (await readLog(f)));
+        await shot(page, "spike5");
+    } else if (step === "spike5verify") {
+        // Re-read the existing rejections document in a fresh session: does the
+        // bulk write survive a reload, not just a re-subscription?
+        const f = await loginAndGetFrame(page);
+        await f.evaluate(() => (location.hash = "#/dev"));
+        await page.waitForTimeout(1000);
+        await f.getByRole("tab", { name: "5 · json doc" }).click();
+        await settle(f);
+        await click(f, "2 · find by SPARQL");
+        await waitForLog(f, "SPARQL found", 60000);
+        await click(f, "3 · subscribe");
+        await waitForLog(f, "subscribed;", 60000);
+        const state = await f.evaluate(() =>
+            document.querySelector("pre").innerText
+        );
+        const m = state.match(/subscribed; signalObject = (\{.*)/);
+        if (m) {
+            const doc = JSON.parse(m[1].replace(/ in \d+ ms$/, ""));
+            console.log(
+                "[persisted] bulk keys:",
+                Object.keys(doc.bulk ?? {}).length,
+                "| suppressedMedia keys:",
+                Object.keys(doc.suppressedMedia ?? {}).length,
+                "| dismissedGroupings:",
+                (doc.dismissedGroupings ?? []).length
+            );
+        } else {
+            console.log("[persisted] could not parse:\n" + state);
+        }
+    } else if (step === "spike6") {
+        // Thumbnails at grid scale (B-01): node browse.mjs spike6 [count] [conc]
+        const count = process.argv[3] ?? "40";
+        const conc = process.argv[4] ?? "6";
+        const f = await loginAndGetFrame(page);
+        await f.evaluate(() => (location.hash = "#/dev"));
+        await page.waitForTimeout(1000);
+        await f.getByRole("tab", { name: "6 · thumbnails" }).click();
+        await settle(f);
+
+        await f.locator('input[type="number"]').first().fill(count);
+        await f.locator('input[type="number"]').nth(1).fill(conc);
+        // count 0 measures the existing corpus without seeding more documents
+        // into the store (which is shared with other people's tests).
+        if (count !== "0") {
+            console.log(`=== seeding ${count} media documents ===`);
+            await click(f, "1 · seed media");
+            await waitForLog(f, "seeded " + count + " media documents", 900000);
+        }
+        await click(f, "2 · discover");
+        await waitForLog(f, "discovered", 180000);
+        console.log("=== thumbnails, sequential ===");
+        await click(f, "3 · thumbnails, sequential");
+        await waitForLog(f, "concurrency 1:", 600000);
+        console.log("=== thumbnails, concurrent ===");
+        await click(f, "4 · thumbnails, concurrent");
+        await waitForLog(f, `concurrency ${conc}:`, 600000);
+        console.log("=== full-size instead ===");
+        await click(f, "5 · full-size instead");
+        await waitForLog(f, "FULL-SIZE", 900000).catch((e) =>
+            console.log(`(full-size: ${e.message})`)
+        );
+        // Every assembled blob must decode: a chunk reassembly bug would show
+        // up as a broken or truncated image, not as an error.
+        await page.waitForTimeout(5000);
+        const decoded = await f.evaluate(async () => {
+            const out = { ok: 0, broken: [], sizes: {} };
+            for (const img of document.querySelectorAll("img")) {
+                if (!img.complete)
+                    await new Promise((r) => {
+                        img.onload = img.onerror = r;
+                    });
+                const k = `${img.naturalWidth}x${img.naturalHeight}`;
+                if (!img.naturalWidth) out.broken.push(img.src.slice(-12));
+                else out.ok++;
+                out.sizes[k] = (out.sizes[k] ?? 0) + 1;
+            }
+            return out;
+        });
+        console.log("[decoded]", JSON.stringify(decoded));
+        console.log("[log]\n" + (await readLog(f)));
+        await shot(page, "spike6");
     } else if (step === "status") {
         const f = await loginAndGetFrame(page);
         console.log("=== waiting 60s for engine to settle after login ===");
