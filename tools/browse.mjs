@@ -679,6 +679,59 @@ try {
             "[text]",
             await f.evaluate(() => document.body.innerText.slice(0, 4000))
         );
+    } else if (step === "devview") {
+        // The developer view must be reachable from inside the wallet iframe
+        // in a preview build, where neither the URL nor a build flag helps.
+        const f = await loginAndGetFrame(page);
+        await settle(f);
+        await f.evaluate(() => (location.hash = "#/visible"));
+        await page.waitForTimeout(5000);
+        const before = await f.evaluate(() => document.body.innerText);
+        console.log(
+            before.includes("Developer view —")
+                ? "OK: the switch is present in a preview build"
+                : "FAIL: no switch"
+        );
+        console.log(
+            before.includes("looks for and does not find")
+                ? "FAIL: annotations shown before the switch was turned on"
+                : "OK: annotations hidden by default"
+        );
+        await f.locator('input[type="checkbox"]').first().click();
+        await page.waitForTimeout(1500);
+        const after = await f.evaluate(() => document.body.innerText);
+        console.log(
+            after.includes("looks for and does not find") &&
+                after.includes("B-01")
+                ? "OK: switching it on reveals the shapes and the borrowings"
+                : "FAIL: annotations did not appear"
+        );
+        await shot(page, "devview-on");
+        // And it must survive the reload, or it is useless in an iframe.
+        await f.evaluate(() => location.reload());
+        await page.waitForTimeout(10000);
+        const f2 = page
+            .frames()
+            .find((fr) => fr.url().startsWith("http://localhost:4567"));
+        await settle(f2);
+        await f2.evaluate(() => (location.hash = "#/visible"));
+        await page.waitForTimeout(5000);
+        const reloaded = await f2.evaluate(() => document.body.innerText);
+        console.log(
+            reloaded.includes("looks for and does not find")
+                ? "OK: the choice persisted across a reload"
+                : "FAIL: the choice did not persist"
+        );
+        // The media tiles carry the same annotation.
+        await f2.evaluate(() => (location.hash = "#/media"));
+        await page.waitForTimeout(6000);
+        const grid = await f2.evaluate(() => document.body.innerText);
+        console.log(
+            grid.includes("no thumbnail")
+                ? "OK: unpicturable media marked in place"
+                : "FAIL: tiles not marked"
+        );
+        await shot(page, "devview-grid");
     } else if (step === "backfill") {
         // One-off: add schema:Event to memories written before it was
         // asserted (§3, §3.6). Adds triples only.

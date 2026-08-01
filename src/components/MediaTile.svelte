@@ -7,6 +7,7 @@
     // source that publishes no thumbnails yields placeholders, and that gap is
     // stated rather than engineered around.
     import { fileUrl, type Media } from "../lib/media";
+    import { devView } from "../lib/devView.svelte";
 
     let {
         media,
@@ -76,7 +77,7 @@
         <span class="absolute inset-0 flex items-center justify-center opacity-30">
             {media.kind === "audio" ? "♪" : media.kind === "video" ? "▶" : "🖼"}
         </span>
-        {#if import.meta.env.DEV}
+        {#if devView.on}
             <span
                 class="absolute bottom-0 left-0 right-0 bg-warning/80 text-[9px] leading-tight px-0.5 truncate"
                 title="B-01: no schema:thumbnailUrl on this {media.kind} descriptor ({media.doc})"

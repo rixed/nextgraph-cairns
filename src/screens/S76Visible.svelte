@@ -11,6 +11,7 @@
     // the store, and filtering belongs in Browse. Nothing about bytes, caches
     // or replication; the framework owns those (§1.2).
     import { census, type CensusRow } from "../lib/census";
+    import { devView } from "../lib/devView.svelte";
     import { router } from "../lib/router.svelte";
 
     let rows = $state<CensusRow[] | undefined>();
@@ -83,9 +84,9 @@
             </section>
         {/each}
 
-        {#if import.meta.env.DEV}
+        {#if devView.on}
             <section class="border border-warning rounded p-3 flex flex-col gap-2">
-                <h2 class="font-semibold">Development build</h2>
+                <h2 class="font-semibold">Developer view</h2>
 
                 {#if absent.length}
                     <div>
@@ -132,5 +133,19 @@
                 </div>
             </section>
         {/if}
+
+        <!-- The switch lives here because this screen exists to make the
+             framework and the app's own borrowings legible. A preview build
+             inside the wallet's iframe cannot be told through the URL. -->
+        <label class="flex items-center gap-2 text-sm opacity-70 self-start">
+            <input
+                type="checkbox"
+                class="toggle toggle-sm"
+                checked={devView.on}
+                onchange={() => devView.toggle()}
+            />
+            Developer view — shapes looked for and not found, borrowed
+            responsibilities, and unpicturable media marked in place
+        </label>
     {/if}
 </div>
