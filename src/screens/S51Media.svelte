@@ -293,9 +293,10 @@
                 </div>
 
                 <p class="text-xs opacity-60">
-                    This photograph belongs to the application that wrote it.
-                    Cairns can point at it, annotate it here, and stop showing
-                    it — but not change or delete it.
+                    This photograph is yours, whichever application wrote it.
+                    Cairns only reads it: your note, the cover and anything you
+                    dismiss are kept on the memory, and the document itself is
+                    left exactly as it was found.
                 </p>
             {/if}
         </div>
