@@ -679,6 +679,23 @@ try {
             "[text]",
             await f.evaluate(() => document.body.innerText.slice(0, 4000))
         );
+    } else if (step === "backfill") {
+        // One-off: add schema:Event to memories written before it was
+        // asserted (§3, §3.6). Adds triples only.
+        const f = await loginAndGetFrame(page);
+        await f.evaluate(() => (location.hash = "#/dev"));
+        await page.waitForTimeout(1000);
+        await f.getByRole("tab", { name: "backfill" }).click();
+        await settle(f);
+        await click(f, "1 · how many are untyped");
+        await waitForLog(f, "memories are not typed", 60000).catch(() =>
+            console.log("(nothing to do)")
+        );
+        await click(f, "2 · backfill");
+        await waitForLog(f, "done —", 300000).catch((e) =>
+            console.log(`(backfill: ${e.message})`)
+        );
+        console.log("[log]\n" + (await readLog(f)));
     } else if (step === "seed-clips") {
         // One video and one audio document, so the non-image rendering paths
         // are exercised by media the fixture actually recorded.

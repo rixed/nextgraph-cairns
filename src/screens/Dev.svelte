@@ -7,6 +7,7 @@
     import Spike4Nested from "../spikes/Spike4Nested.svelte";
     import Spike5JsonDoc from "../spikes/Spike5JsonDoc.svelte";
     import Spike6Thumbnails from "../spikes/Spike6Thumbnails.svelte";
+    import Backfill from "../spikes/Backfill.svelte";
     import { appendConcept } from "../lib/tags";
     import { router } from "../lib/router.svelte";
 
@@ -17,6 +18,7 @@
         { name: "4 · nested", component: Spike4Nested },
         { name: "5 · json doc", component: Spike5JsonDoc },
         { name: "6 · thumbnails", component: Spike6Thumbnails },
+        { name: "backfill", component: Backfill },
     ];
     let current = $state(0);
     const Current = $derived(spikes[current].component);
