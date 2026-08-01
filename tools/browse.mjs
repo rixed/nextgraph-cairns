@@ -671,6 +671,14 @@ try {
         await f.evaluate((h) => (location.hash = h), hash);
         await page.waitForTimeout(6000);
         await shot(page, process.argv[4] ?? "screen");
+        // Long screens: the interesting part is often below the fold.
+        await f.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await page.waitForTimeout(1000);
+        await shot(page, `${process.argv[4] ?? "screen"}-bottom`);
+        console.log(
+            "[text]",
+            await f.evaluate(() => document.body.innerText.slice(0, 4000))
+        );
     } else if (step === "seed-clips") {
         // One video and one audio document, so the non-image rendering paths
         // are exercised by media the fixture actually recorded.

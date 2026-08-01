@@ -5,7 +5,8 @@ PREFIX foaf: <http://xmlns.com/foaf/0.1/>
 PREFIX geo: <http://www.w3.org/2003/01/geo/wgs84_pos#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
 
-# EXTRA a: memories are multi-typed (schema:Event, sometimes schema:Trip).
+# EXTRA a: memories are multi-typed — always schema:Event (§3), sometimes
+# schema:Trip (§3.6). The shape keys on app:Memory and tolerates the rest.
 app:MemoryShape EXTRA a {
   a [app:Memory] ;
   schema:name xsd:string ? ;

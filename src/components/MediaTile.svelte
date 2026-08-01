@@ -79,7 +79,7 @@
         {#if import.meta.env.DEV}
             <span
                 class="absolute bottom-0 left-0 right-0 bg-warning/80 text-[9px] leading-tight px-0.5 truncate"
-                title="B-01: no schema:thumbnailUrl on {media.doc}"
+                title="B-01: no schema:thumbnailUrl on this {media.kind} descriptor ({media.doc})"
             >
                 no thumbnail
             </span>

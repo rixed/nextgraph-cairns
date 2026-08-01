@@ -13,19 +13,3 @@ export async function select(query: string): Promise<any[]> {
     );
     return ret?.results?.bindings ?? [];
 }
-
-/** How many subjects of this type exist, across every document. */
-export async function countSubjectsOfType(typeIri: string): Promise<number> {
-    const rows = await select(
-        `SELECT DISTINCT ?s WHERE { GRAPH ?g { ?s a <${typeIri}> } }`
-    );
-    return rows.length;
-}
-
-/** How many documents hold a subject of this type. */
-export async function countDocsOfType(typeIri: string): Promise<number> {
-    const rows = await select(
-        `SELECT DISTINCT ?doc WHERE { GRAPH ?doc { ?s a <${typeIri}> } }`
-    );
-    return rows.length;
-}

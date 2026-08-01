@@ -22,7 +22,11 @@
     ]);
 
     const rows = [
-        { label: "Data sources", hint: "what Cairns can discover", route: "sources" },
+        {
+            label: "What Cairns can see",
+            hint: "the shapes it recognises in your store",
+            route: "visible",
+        },
         { label: "Stats", hint: "not built yet" },
         { label: "Tags", hint: "not built yet" },
         { label: "Settings", hint: "not built yet" },
@@ -48,7 +52,7 @@
                     disabled={!("route" in r)}
                     onclick={() =>
                         "route" in r &&
-                        router.push({ name: "sources" })}
+                        router.push({ name: "visible" })}
                 >
                     <span>{r.label}</span>
                     <span class="text-xs opacity-60 ml-auto">{r.hint}</span>

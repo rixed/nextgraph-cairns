@@ -25,7 +25,11 @@ export interface MemoryFields {
 
 function fieldTriples(subject: string, f: MemoryFields): string {
     const t = [
+        // app:Memory ⊑ schema:Event (§3). Nothing here reasons over the
+        // subclass, so the memory asserts both types itself — that is what
+        // makes it legible to an app that has never heard of Cairns (§3.6).
         `<${subject}> a app:Memory`,
+        `<${subject}> a schema:Event`,
         `<${subject}> schema:startDate ${dateLiteral(f.startDate)}`,
     ];
     if (f.endDate)

@@ -8,7 +8,7 @@
     import S22cMedia from "./screens/S22cMedia.svelte";
     import S51Media from "./screens/S51Media.svelte";
     import S70Me from "./screens/S70Me.svelte";
-    import S76Sources from "./screens/S76Sources.svelte";
+    import S76Visible from "./screens/S76Visible.svelte";
     import Dev from "./screens/Dev.svelte";
     import Stub from "./screens/Stub.svelte";
 
@@ -23,7 +23,7 @@
         mediagrid: S22cMedia,
         media: S51Media,
         me: S70Me,
-        sources: S76Sources,
+        visible: S76Visible,
         dev: Dev,
         stub: Stub,
     } as const;
@@ -56,7 +56,7 @@
               // The projections and what they open into are all Browse.
               router.current.name === "mediagrid" ||
               router.current.name === "media" ||
-              (t.route.name === "me" && router.current.name === "sources")
+              (t.route.name === "me" && router.current.name === "visible")
             : router.current.name === "stub" &&
               router.current.params?.label === t.label;
 </script>
