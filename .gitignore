@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.local
+.DS_Store
+.vite
+
+# Artefacts of tools/browse.mjs: the headless Chrome profile (holds the
+# logged-in wallet session) and its screenshots.
+tools/profile/
+tools/shots/
