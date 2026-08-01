@@ -1,7 +1,7 @@
 # This is the entry point for every build task: package.json deliberately
 # carries no scripts, so the tools are invoked directly here.
 
-.PHONY: all help install build run dev test check orm e2e e2e-m1 e2e-m2 seed-media clean
+.PHONY: all help install build run dev test check orm e2e e2e-m1 e2e-m2 seed-media seed-clips clean
 
 PNPM = pnpm
 # Vite serves on this port for both dev and preview (see vite.config.ts).
@@ -27,6 +27,7 @@ help:
 	@echo '  - seed-media: Write COUNT fixture media documents into the'
 	@echo '         store, standing in for the applications that would'
 	@echo '         normally have taken the pictures (default 40)'
+	@echo '  - seed-clips: The same, for one video and one audio document'
 	@echo
 	@echo '  - orm: Regenerate src/shapes/orm/ from the SHEX schemas'
 	@echo '  - install: Install dependencies'
@@ -70,6 +71,9 @@ e2e-m2: node_modules
 COUNT = 40
 seed-media: node_modules
 	node tools/browse.mjs spike6 $(COUNT) 8
+
+seed-clips: node_modules
+	node tools/browse.mjs seed-clips
 
 clean:
 	rm -rf dist

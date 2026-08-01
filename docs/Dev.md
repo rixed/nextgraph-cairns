@@ -16,3 +16,19 @@ up. If no users are present yet, also run `make provision` and upload the wallet
 that will be generated as `../nextgraph-devstack/wallets/user5.ngw` and then log
 in.
 
+
+## Fixture media
+
+Cairns has no camera and no write path to a media document (Specs §1.2.8,
+§3.4): photographs only exist because another application wrote them. For
+development there is no such application yet, so `src/spikes/mediaFixture.ts`
+plays one — it is deliberately outside `src/lib/` so the app itself never gains
+that capability.
+
+    make seed-media COUNT=40   # images, spread over August 2019, a third
+                               # of them deliberately without a thumbnail
+    make seed-clips            # one video and one audio document
+
+Both drive the logged-in app through headless Chrome, so the devstack must be
+up and the app served (`make run`). The documents land in the user's store like
+any other, and Cairns then discovers them by SPARQL — which is the whole point.

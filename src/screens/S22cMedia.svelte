@@ -6,13 +6,10 @@
     // Thumbnails only, never a full-size image shrunk to fit (§3.4, B-01);
     // media without one occupy a placeholder tile rather than vanishing.
     import { useShape } from "@ng-org/orm/svelte";
-    import { OrmSubscription, normalizeScope } from "@ng-org/orm";
-    import { ImageShapeType } from "../shapes/orm/mediaShape.shapeTypes";
-    import type { Image } from "../shapes/orm/mediaShape.typings";
+    import { useAllMedia, mediaReady } from "../lib/mediaFeed.svelte";
     import { MemoryShapeType } from "../shapes/orm/memoryShape.shapeTypes";
     import type { Memory } from "../shapes/orm/memoryShape.typings";
     import {
-        toMedia,
         takenAtMs,
         spanOf,
         mediaInSpan,
@@ -21,19 +18,18 @@
     import { isMediaSuppressed } from "../lib/rejections.svelte";
     import { router } from "../lib/router.svelte";
     import MediaTile from "../components/MediaTile.svelte";
+    import ProjectionSwitcher from "../components/ProjectionSwitcher.svelte";
+    import { parsePrecisionDate, formatPrecisionDate } from "../lib/dates";
 
     const scopedTo = router.current.params?.memory;
 
-    const images = useShape(ImageShapeType, "did:ng:i");
     const memories = useShape(MemoryShapeType, "did:ng:i");
+    const feed = useAllMedia();
 
     let ready = $state(false);
-    OrmSubscription.getOrCreate(
-        ImageShapeType,
-        normalizeScope("did:ng:i")
-    ).readyPromise.then(() => (ready = true));
+    mediaReady().then(() => (ready = true));
 
-    const all = $derived(([...images] as unknown as Image[]).map(toMedia));
+    const all = $derived(feed.all);
     const memory = $derived(
         scopedTo
             ? ([...memories].find((m) => m["@graph"] === scopedTo) as
@@ -78,7 +74,55 @@
         }));
     });
 
-    const placeholders = $derived(shown.filter((m) => !m.thumbnailUrl).length);
+    const placeholders = $derived(
+        shown.filter((m) => !m.thumbnailUrl && m.kind !== "audio").length
+    );
+
+    let groupBy = $state<"day" | "memory">("day");
+    let showKinds = $state(false);
+
+    const attachedHere = $derived(
+        new Set(scopedTo ? [...(memory?.subjectOf ?? [])] : [])
+    );
+
+    /**
+     * Which memory a photograph belongs to: the one that attached it, or the
+     * first whose span covers it. Derived on the spot, like every other
+     * association (§3.4) — a photograph carries no memory of its own.
+     */
+    const byMemory = $derived.by(() => {
+        const mems = [...memories] as unknown as Memory[];
+        const spans = mems.map((m) => ({
+            m,
+            span: spanOf(m.startDate, m.endDate),
+        }));
+        const label = (m: Memory) => {
+            const d = parsePrecisionDate(m.startDate);
+            return m.name ?? (d ? formatPrecisionDate(d) : "Untitled");
+        };
+        const groups = new Map<string, Media[]>();
+        for (const media of shown) {
+            const t = takenAtMs(media);
+            const owner =
+                mems.find((m) => m.subjectOf?.has(media.doc)) ??
+                spans.find(
+                    ({ m, span }) =>
+                        span &&
+                        t !== undefined &&
+                        t >= span.earliest &&
+                        t <= span.latest &&
+                        !isMediaSuppressed(m["@graph"], media.doc)
+                )?.m;
+            const key = owner ? label(owner) : "Not in any memory";
+            (groups.get(key) ?? groups.set(key, []).get(key)!).push(media);
+        }
+        return [...groups.entries()].map(([header, items]) => ({
+            header,
+            items,
+        }));
+    });
+
+    const shownGroups = $derived(groupBy === "day" ? groups : byMemory);
 
     const open = (m: Media) =>
         router.push({
@@ -99,6 +143,10 @@
         </h1>
     </div>
 
+    {#if !scopedTo}
+        <ProjectionSwitcher current="media" />
+    {/if}
+
     {#if !ready}
         <div class="flex items-center gap-2 text-sm opacity-70 my-2">
             <span class="loading loading-bars loading-xs"></span>
@@ -115,14 +163,35 @@
             </p>
         </div>
     {:else}
-        {#if placeholders}
-            <p class="text-xs opacity-60 mb-2">
-                {placeholders} of {shown.length} publish no thumbnail and show as
-                placeholders.
-            </p>
-        {/if}
+        <div class="flex items-center gap-3 mb-2 text-xs">
+            <div class="join">
+                <button
+                    class="join-item btn btn-xs"
+                    class:btn-active={groupBy === "day"}
+                    onclick={() => (groupBy = "day")}>by day</button
+                >
+                <button
+                    class="join-item btn btn-xs"
+                    class:btn-active={groupBy === "memory"}
+                    onclick={() => (groupBy = "memory")}>by memory</button
+                >
+            </div>
+            {#if scopedTo}
+                <button
+                    class="opacity-60 hover:opacity-100 underline"
+                    onclick={() => (showKinds = !showKinds)}
+                >
+                    {showKinds ? "hide" : "show"} how each got here
+                </button>
+            {/if}
+            {#if placeholders}
+                <span class="opacity-60 ml-auto">
+                    {placeholders} of {shown.length} could be pictured and are not
+                </span>
+            {/if}
+        </div>
 
-        {#each groups as group (group.header)}
+        {#each shownGroups as group (group.header)}
             <h2
                 class="sticky top-0 bg-base-100 z-[5] text-sm font-semibold opacity-70 py-1 border-b"
             >
@@ -133,7 +202,16 @@
                 class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1 my-2"
             >
                 {#each group.items as m (m.doc)}
-                    <MediaTile media={m} onclick={() => open(m)} />
+                    <div class="flex flex-col gap-0.5">
+                        <MediaTile media={m} onclick={() => open(m)} />
+                        {#if showKinds}
+                            <span class="text-[10px] opacity-60 text-center">
+                                {attachedHere.has(m.doc)
+                                    ? "attached"
+                                    : "overlap"}
+                            </span>
+                        {/if}
+                    </div>
                 {/each}
             </div>
         {/each}

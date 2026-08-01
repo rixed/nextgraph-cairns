@@ -46,7 +46,12 @@
 
     const isActive = (t: (typeof tabs)[number]) =>
         t.route
-            ? router.current.name === t.route.name || router.current.name === "detail" || router.current.name === "editor"
+            ? router.current.name === t.route.name ||
+              router.current.name === "detail" ||
+              router.current.name === "editor" ||
+              // The projections and what they open into are all Browse.
+              router.current.name === "mediagrid" ||
+              router.current.name === "media"
             : router.current.name === "stub" &&
               router.current.params?.label === t.label;
 </script>

@@ -39,16 +39,27 @@
     );
 </script>
 
-<button
+<!-- A tile is a button only when it leads somewhere: inside a row that is
+     itself a button (S-22a), it must render as plain content. -->
+<svelte:element
+    this={onclick ? "button" : "div"}
     class="relative block w-full overflow-hidden rounded bg-base-200 border {selected
         ? 'border-primary border-2'
         : 'border-base-300'}"
     style="aspect-ratio: {ratio}"
     {onclick}
     title={media.caption ?? media.takenAt ?? ""}
+    role={onclick ? undefined : "presentation"}
 >
     {#if url}
         <img src={url} alt={media.caption ?? ""} class="w-full h-full object-cover" />
+        {#if media.kind !== "image"}
+            <span
+                class="absolute top-0.5 left-0.5 bg-base-100/80 rounded px-1 text-[10px]"
+            >
+                {media.kind === "video" ? "▶" : "♪"}
+            </span>
+        {/if}
     {:else if failed}
         <span class="absolute inset-0 flex items-center justify-center text-xs opacity-60 px-1 text-center">
             not readable here
@@ -60,9 +71,10 @@
     {:else}
         <!-- No thumbnail: an ordinary empty tile for the user. A development
              build marks it and names its source, so the boundary stays
-             visible to whoever is deciding it (§3.4, B-01). -->
+             visible to whoever is deciding it (§3.4, B-01). Audio never has
+             one to publish, so its tile is a statement rather than a gap. -->
         <span class="absolute inset-0 flex items-center justify-center opacity-30">
-            🖼
+            {media.kind === "audio" ? "♪" : media.kind === "video" ? "▶" : "🖼"}
         </span>
         {#if import.meta.env.DEV}
             <span
@@ -73,4 +85,4 @@
             </span>
         {/if}
     {/if}
-</button>
+</svelte:element>

@@ -660,6 +660,25 @@ try {
         } else {
             console.log("[persisted] could not parse:\n" + state);
         }
+    } else if (step === "screen") {
+        // node browse.mjs screen '#/' name — look at one screen.
+        const f = await loginAndGetFrame(page);
+        await settle(f);
+        const hash = process.argv[3] ?? "#/";
+        await f.evaluate((h) => (location.hash = h), hash);
+        await page.waitForTimeout(6000);
+        await shot(page, process.argv[4] ?? "screen");
+    } else if (step === "seed-clips") {
+        // One video and one audio document, so the non-image rendering paths
+        // are exercised by media the fixture actually recorded.
+        const f = await loginAndGetFrame(page);
+        await f.evaluate(() => (location.hash = "#/dev"));
+        await page.waitForTimeout(1000);
+        await f.getByRole("tab", { name: "6 · thumbnails" }).click();
+        await settle(f);
+        await click(f, "1b · seed a clip of each kind");
+        await waitForLog(f, "seeded a audio document", 300000);
+        console.log("[log]\n" + (await readLog(f)));
     } else if (step === "spike6") {
         // Thumbnails at grid scale (B-01): node browse.mjs spike6 [count] [conc]
         const count = process.argv[3] ?? "40";

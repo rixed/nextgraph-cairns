@@ -6,12 +6,10 @@
     //
     // There is no delete: the app cannot remove a document it does not own.
     import { useShape } from "@ng-org/orm/svelte";
-    import { ImageShapeType } from "../shapes/orm/mediaShape.shapeTypes";
-    import type { Image } from "../shapes/orm/mediaShape.typings";
     import { MemoryShapeType } from "../shapes/orm/memoryShape.shapeTypes";
+    import { useAllMedia } from "../lib/mediaFeed.svelte";
     import type { Memory } from "../shapes/orm/memoryShape.typings";
     import {
-        toMedia,
         fileUrl,
         spanOf,
         mediaInSpan,
@@ -34,10 +32,10 @@
     /** The memory this was opened from, when it was. */
     const fromMemory = router.current.params?.from;
 
-    const images = useShape(ImageShapeType, "did:ng:i");
     const memories = useShape(MemoryShapeType, "did:ng:i");
+    const feed = useAllMedia();
 
-    const all = $derived(([...images] as unknown as Image[]).map(toMedia));
+    const all = $derived(feed.all);
     const media = $derived(all.find((m) => m.doc === mediaDoc));
     const memory = $derived(
         fromMemory
@@ -81,16 +79,18 @@
     // The thumbnail stands in meanwhile, so the screen renders what it already
     // has rather than a spinner (§8, "partially loaded").
     let url = $state<string | undefined>();
+    let poster = $state<string | undefined>();
     let failed = $state(false);
     $effect(() => {
         const m = media;
         if (!m) return;
         let live = true;
         url = undefined;
+        poster = undefined;
         failed = false;
         if (m.thumbnailUrl)
             fileUrl(m.thumbnailUrl, m.doc)
-                .then((u) => live && !url && (url = u))
+                .then((u) => live && (poster = u))
                 .catch(() => {});
         fileUrl(m.contentUrl, m.doc)
             .then((u) => live && (url = u))
@@ -148,9 +148,22 @@
         </div>
     {:else}
         <div class="bg-base-300 flex items-center justify-center min-h-64">
-            {#if url}
-                <img
+            {#if media.kind === "video"}
+                <!-- svelte-ignore a11y_media_has_caption -->
+                <video
                     src={url}
+                    poster={poster}
+                    controls
+                    class="max-h-[70vh] w-auto"
+                ></video>
+            {:else if media.kind === "audio"}
+                <div class="p-10 flex flex-col items-center gap-3">
+                    <span class="text-4xl opacity-40">♪</span>
+                    <audio src={url} controls></audio>
+                </div>
+            {:else if url ?? poster}
+                <img
+                    src={url ?? poster}
                     alt={media.caption ?? ""}
                     class="max-h-[70vh] w-auto object-contain"
                 />
@@ -194,16 +207,21 @@
                     <dt class="opacity-60">Size</dt>
                     <dd>{media.width} × {media.height}</dd>
                 {/if}
+                {#if media.duration}
+                    <dt class="opacity-60">Duration</dt>
+                    <dd>{media.duration}</dd>
+                {/if}
                 <dt class="opacity-60">Document</dt>
                 <dd class="font-mono text-xs break-all opacity-70">
                     {media.doc}
                 </dd>
             </dl>
 
-            {#if !media.thumbnailUrl}
+            {#if !media.thumbnailUrl && media.kind !== "audio"}
                 <p class="text-xs opacity-60">
-                    This source publishes no thumbnail, so this photograph shows
-                    as a placeholder in lists and on the map.
+                    This source publishes no thumbnail, so this
+                    {media.kind === "video" ? "clip" : "photograph"} shows as a
+                    placeholder in lists and on the map.
                 </p>
             {/if}
 

@@ -3,7 +3,9 @@ PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 PREFIX exif: <http://www.w3.org/2003/12/exif/ns#>
 PREFIX app: <did:ng:z:cairns/>
 
-# Foreign media descriptor, read-only for this app (Specs §3.4).
+# Foreign media descriptors, read-only for this app (Specs §3.4). One shape per
+# type, because a media document is whatever its own application wrote: the app
+# reads all three and pictures whichever can be pictured.
 app:ImageShape EXTRA a {
   a [schema:ImageObject] ;
   schema:contentUrl IRI ;
@@ -11,6 +13,31 @@ app:ImageShape EXTRA a {
   schema:caption xsd:string ? ;
   schema:width xsd:integer ? ;
   schema:height xsd:integer ? ;
+  exif:dateTimeOriginal xsd:dateTime ? ;
+  exif:gpsLatitude xsd:decimal ? ;
+  exif:gpsLongitude xsd:decimal ? ;
+}
+
+app:VideoShape EXTRA a {
+  a [schema:VideoObject] ;
+  schema:contentUrl IRI ;
+  schema:thumbnailUrl IRI ? ;
+  schema:caption xsd:string ? ;
+  schema:width xsd:integer ? ;
+  schema:height xsd:integer ? ;
+  schema:duration xsd:string ? ;
+  exif:dateTimeOriginal xsd:dateTime ? ;
+  exif:gpsLatitude xsd:decimal ? ;
+  exif:gpsLongitude xsd:decimal ? ;
+}
+
+# Audio has no thumbnail to publish, so it is always a placeholder tile — an
+# honest one rather than a missing row.
+app:AudioShape EXTRA a {
+  a [schema:AudioObject] ;
+  schema:contentUrl IRI ;
+  schema:caption xsd:string ? ;
+  schema:duration xsd:string ? ;
   exif:dateTimeOriginal xsd:dateTime ? ;
   exif:gpsLatitude xsd:decimal ? ;
   exif:gpsLongitude xsd:decimal ? ;

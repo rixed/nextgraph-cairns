@@ -6,11 +6,8 @@
     // It leads with what the overlap rule would associate anyway, so the user
     // attaches only the exceptions — a photograph from another day, or one the
     // camera never dated.
-    import { useShape } from "@ng-org/orm/svelte";
-    import { ImageShapeType } from "../shapes/orm/mediaShape.shapeTypes";
-    import type { Image } from "../shapes/orm/mediaShape.typings";
+    import { useAllMedia } from "../lib/mediaFeed.svelte";
     import {
-        toMedia,
         takenAtMs,
         mediaInSpan,
         type Media,
@@ -31,8 +28,8 @@
     /** How many others to offer: enough to find one, not the whole archive. */
     const OFFERED = 60;
 
-    const images = useShape(ImageShapeType, "did:ng:i");
-    const all = $derived(([...images] as unknown as Image[]).map(toMedia));
+    const feed = useAllMedia();
+    const all = $derived(feed.all);
 
     const byOverlap = $derived(span ? mediaInSpan(all, span) : []);
     const overlapDocs = $derived(new Set(byOverlap.map((m) => m.doc)));

@@ -6,11 +6,14 @@
 import { sessionPromise } from "./ngSession";
 import { SPARQL_PREFIXES } from "./typedLiterals";
 import { interval, parsePrecisionDate, type Interval } from "./dates";
-import type { Image } from "../shapes/orm/mediaShape.typings";
+import type { Audio, Image, Video } from "../shapes/orm/mediaShape.typings";
 import type { MediaNote, Memory } from "../shapes/orm/memoryShape.typings";
+
+export type MediaKind = "image" | "video" | "audio";
 
 /** A media descriptor as the app cares about it, flattened from the shape. */
 export interface Media {
+    kind: MediaKind;
     /** The media document's NURI — the value a memory's subjectOf holds. */
     doc: string;
     /** The descriptor's subject IRI (usually the document itself). */
@@ -20,24 +23,32 @@ export interface Media {
     caption?: string;
     width?: number;
     height?: number;
+    /** schema:duration, as the source wrote it (ISO 8601 or free text). */
+    duration?: string;
     /** exif:dateTimeOriginal, the lexical form. */
     takenAt?: string;
     lat?: number;
     lon?: number;
 }
 
-export function toMedia(img: Image): Media {
+export function toMedia(
+    d: Image | Video | Audio,
+    kind: MediaKind = "image"
+): Media {
+    const av = d as Video & Audio;
     return {
-        doc: img["@graph"],
-        id: img["@id"],
-        contentUrl: img.contentUrl,
-        thumbnailUrl: img.thumbnailUrl,
-        caption: img.caption,
-        width: img.width,
-        height: img.height,
-        takenAt: img.dateTimeOriginal,
-        lat: img.gpsLatitude,
-        lon: img.gpsLongitude,
+        kind,
+        doc: d["@graph"],
+        id: d["@id"],
+        contentUrl: d.contentUrl,
+        thumbnailUrl: (d as Image).thumbnailUrl,
+        caption: d.caption,
+        width: (d as Image).width,
+        height: (d as Image).height,
+        duration: av.duration,
+        takenAt: d.dateTimeOriginal,
+        lat: d.gpsLatitude,
+        lon: d.gpsLongitude,
     };
 }
 
@@ -73,6 +84,38 @@ export function spanOf(
     const end = parsePrecisionDate(endDate ?? undefined);
     const s = interval(start);
     return end ? { earliest: s.earliest, latest: interval(end).latest } : s;
+}
+
+/**
+ * The photograph that stands for a memory in a list: the cover the user
+ * designated, or — failing that — the first of its photographs that can
+ * actually be pictured. The fallback is derived and never stored (§1.3), which
+ * is what lets an umbrella memory carry weight in the time projection without
+ * anyone curating it.
+ *
+ * The suppression test is injected so this stays a pure function.
+ */
+export function coverFor(
+    memory: Memory,
+    all: Media[],
+    isSuppressed: (memoryDoc: string, mediaDoc: string) => boolean
+): Media | undefined {
+    const doc = memory["@graph"];
+    if (memory.image) {
+        const named = all.find((m) => m.doc === memory.image);
+        if (named?.thumbnailUrl) return named;
+    }
+    const explicit = [...(memory.subjectOf ?? [])]
+        .map((d) => all.find((m) => m.doc === d))
+        .filter((m): m is Media => !!m);
+    const withThumb = explicit.find((m) => m.thumbnailUrl);
+    if (withThumb) return withThumb;
+
+    const span = spanOf(memory.startDate, memory.endDate);
+    if (!span) return undefined;
+    return mediaInSpan(all, span).find(
+        (m) => m.thumbnailUrl && !isSuppressed(doc, m.doc)
+    );
 }
 
 // ---------------------------------------------------------------------------

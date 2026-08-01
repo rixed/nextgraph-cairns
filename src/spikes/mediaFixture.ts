@@ -128,7 +128,63 @@ export async function makeImage(
     return await new Promise((r) => c.toBlob((b) => r(b!), type, 0.8));
 }
 
+/**
+ * A short clip, recorded the way a phone would produce one. MediaRecorder
+ * gives real webm rather than bytes pretending to be a video, which is the
+ * point: Cairns should meet media it did not fabricate.
+ */
+export async function makeClip(
+    kind: "video" | "audio",
+    ms = 1200
+): Promise<Blob> {
+    const mimeType = kind === "video" ? "video/webm" : "audio/webm";
+    let stream: MediaStream;
+    let stop = () => {};
+
+    if (kind === "video") {
+        const c = document.createElement("canvas");
+        c.width = 320;
+        c.height = 240;
+        const ctx = c.getContext("2d")!;
+        let f = 0;
+        const timer = setInterval(() => {
+            ctx.fillStyle = `hsl(${(f * 7) % 360} 70% 50%)`;
+            ctx.fillRect(0, 0, 320, 240);
+            ctx.fillStyle = "#fff";
+            ctx.font = "24px sans-serif";
+            ctx.fillText(`frame ${f++}`, 20, 120);
+        }, 100);
+        stream = (c as any).captureStream(10);
+        stop = () => clearInterval(timer);
+    } else {
+        const ac = new AudioContext();
+        const osc = ac.createOscillator();
+        const dest = ac.createMediaStreamDestination();
+        osc.frequency.value = 440;
+        osc.connect(dest);
+        osc.start();
+        stream = dest.stream;
+        stop = () => {
+            osc.stop();
+            ac.close();
+        };
+    }
+
+    const chunks: BlobPart[] = [];
+    const rec = new MediaRecorder(stream, { mimeType });
+    const done = new Promise<void>((r) => (rec.onstop = () => r()));
+    rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    rec.start();
+    await new Promise((r) => setTimeout(r, ms));
+    rec.stop();
+    await done;
+    stop();
+    return new Blob(chunks, { type: mimeType });
+}
+
 export interface MediaSpec {
+    /** What the other application wrote. Images are the common case. */
+    kind?: "image" | "video" | "audio";
     /** xsd:dateTime lexical form for exif:dateTimeOriginal. */
     when: string;
     lat?: number;
@@ -142,6 +198,7 @@ export interface MediaSpec {
 /** Write one media document — descriptor plus binaries — as a camera would. */
 export async function createMediaDoc(spec: MediaSpec): Promise<string> {
     const s = await sessionPromise;
+    const kind = spec.kind ?? "image";
     const doc: string = await s.ng.doc_create(
         s.session_id,
         "Graph",
@@ -150,23 +207,41 @@ export async function createMediaDoc(spec: MediaSpec): Promise<string> {
         undefined
     );
 
-    const full = await makeImage(1024, 768, spec.label, "image/jpeg");
-    const contentUrl = await putFile(doc, full, `${spec.label}.jpg`);
-    const thumbUrl = spec.withThumbnail
-        ? await putFile(
-              doc,
-              await makeImage(160, 120, spec.label, "image/jpeg"),
-              `${spec.label}-thumb.jpg`
-          )
-        : undefined;
+    const content =
+        kind === "image"
+            ? await makeImage(1024, 768, spec.label, "image/jpeg")
+            : await makeClip(kind);
+    const ext = kind === "image" ? "jpg" : "webm";
+    const contentUrl = await putFile(doc, content, `${spec.label}.${ext}`);
+
+    // Audio has no thumbnail to publish, ever: that is a fact about the medium
+    // rather than a gap in the source (§3.4).
+    const thumbUrl =
+        spec.withThumbnail && kind !== "audio"
+            ? await putFile(
+                  doc,
+                  await makeImage(160, 120, spec.label, "image/jpeg"),
+                  `${spec.label}-thumb.jpg`
+              )
+            : undefined;
+
+    const type = {
+        image: "schema:ImageObject",
+        video: "schema:VideoObject",
+        audio: "schema:AudioObject",
+    }[kind];
 
     const triples = [
-        `<${doc}> a schema:ImageObject`,
+        `<${doc}> a ${type}`,
         `<${doc}> schema:contentUrl <${contentUrl}>`,
-        `<${doc}> schema:width "1024"^^xsd:integer`,
-        `<${doc}> schema:height "768"^^xsd:integer`,
         `<${doc}> exif:dateTimeOriginal "${spec.when}"^^xsd:dateTime`,
     ];
+    if (kind !== "audio")
+        triples.push(
+            `<${doc}> schema:width "${kind === "image" ? 1024 : 320}"^^xsd:integer`,
+            `<${doc}> schema:height "${kind === "image" ? 768 : 240}"^^xsd:integer`
+        );
+    if (kind !== "image") triples.push(`<${doc}> schema:duration "PT1S"`);
     if (thumbUrl) triples.push(`<${doc}> schema:thumbnailUrl <${thumbUrl}>`);
     if (spec.caption)
         triples.push(`<${doc}> schema:caption "${spec.caption}"`);

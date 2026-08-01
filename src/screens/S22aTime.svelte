@@ -16,8 +16,15 @@
     } from "../lib/dates";
     import { router } from "../lib/router.svelte";
     import TagChips from "../components/TagChips.svelte";
+    import MediaTile from "../components/MediaTile.svelte";
+    import ProjectionSwitcher from "../components/ProjectionSwitcher.svelte";
+    import { useAllMedia } from "../lib/mediaFeed.svelte";
+    import { coverFor, type Media } from "../lib/media";
+    import { isMediaSuppressed } from "../lib/rejections.svelte";
 
     const memories = useShape(MemoryShapeType, "did:ng:i");
+    const mediaFeed = useAllMedia();
+    const allMedia = $derived(mediaFeed.all);
 
     let ready = $state(false);
     OrmSubscription.getOrCreate(
@@ -44,12 +51,25 @@
 
     const groups = $derived(groupByDerivedHeaders(rows, (r) => r.start));
 
+    // A memory shows the cover it was given, or the first photograph that can
+    // stand for it — computed here, never written back (§1.3).
+    const covers = $derived.by(() => {
+        const m = new Map<string, Media>();
+        for (const r of rows) {
+            const c = coverFor(r.m, allMedia, isMediaSuppressed);
+            if (c) m.set(r.m["@graph"], c);
+        }
+        return m;
+    });
+
     const open = (r: Row) =>
         router.push({ name: "detail", params: { doc: r.m["@graph"] } });
 </script>
 
 <div class="p-4 max-w-2xl mx-auto">
     <h1 class="text-xl font-bold mb-2">Browse</h1>
+
+    <ProjectionSwitcher current="time" />
 
     {#if !ready}
         <div class="flex items-center gap-2 text-sm opacity-70 my-2">
@@ -79,9 +99,17 @@
                 {#each group.items as r (`${r.m["@graph"]}|${r.m["@id"]}`)}
                     <li>
                         <button
-                            class="w-full text-left py-2 px-1 hover:bg-base-200 rounded flex flex-col gap-0.5"
+                            class="w-full text-left py-2 px-1 hover:bg-base-200 rounded flex gap-3 items-start"
                             onclick={() => open(r)}
                         >
+                            {#if covers.get(r.m["@graph"])}
+                                <span class="w-16 shrink-0">
+                                    <MediaTile
+                                        media={covers.get(r.m["@graph"])!}
+                                    />
+                                </span>
+                            {/if}
+                            <span class="flex flex-col gap-0.5 min-w-0">
                             <span class="font-medium">
                                 {r.m.name ?? formatPrecisionDate(r.start)}
                             </span>
@@ -100,6 +128,7 @@
                                     <TagChips iris={r.m.subject} />
                                 </span>
                             {/if}
+                            </span>
                         </button>
                     </li>
                 {/each}

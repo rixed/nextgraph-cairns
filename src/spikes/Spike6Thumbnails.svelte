@@ -65,6 +65,27 @@
         }
     }
 
+    /** One clip of each kind, so the non-image paths meet real data. */
+    async function seedClips() {
+        try {
+            for (const kind of ["video", "audio"] as const) {
+                const t0 = performance.now();
+                await createMediaDoc({
+                    kind,
+                    label: `fix-${kind}`,
+                    when: "2019-08-14T12:00:00",
+                    lat: 38.72,
+                    lon: -9.13,
+                    withThumbnail: kind === "video",
+                    caption: `fixture ${kind}`,
+                });
+                say(`seeded a ${kind} document in ${fmt(performance.now() - t0)}`);
+            }
+        } catch (e) {
+            say(`ERROR: ${e}`);
+        }
+    }
+
     /** What Cairns actually does: discover foreign descriptors by SPARQL. */
     async function discover() {
         try {
@@ -174,6 +195,7 @@
             />
         </label>
         <button class="btn btn-sm" onclick={seed}>1 · seed media</button>
+        <button class="btn btn-sm" onclick={seedClips}>1b · seed a clip of each kind</button>
         <button class="btn btn-sm" onclick={discover}>2 · discover</button>
         <button class="btn btn-sm" onclick={() => fetchThumbnails(1)}>
             3 · thumbnails, sequential

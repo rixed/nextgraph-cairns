@@ -7,9 +7,7 @@
     // Conditional like every foreign section (§5): when nothing is associated,
     // the strip is silently absent rather than advertising an app the user may
     // not have.
-    import { useShape } from "@ng-org/orm/svelte";
-    import { ImageShapeType } from "../shapes/orm/mediaShape.shapeTypes";
-    import type { Image } from "../shapes/orm/mediaShape.typings";
+    import { useAllMedia } from "../lib/mediaFeed.svelte";
     import type { Memory } from "../shapes/orm/memoryShape.typings";
     import {
         toMedia,
@@ -23,8 +21,8 @@
 
     let { memory }: { memory: Memory } = $props();
 
-    const images = useShape(ImageShapeType, "did:ng:i");
-    const all = $derived(([...images] as unknown as Image[]).map(toMedia));
+    const feed = useAllMedia();
+    const all = $derived(feed.all);
     const doc = $derived(memory["@graph"]);
 
     const explicit = $derived(
@@ -44,7 +42,7 @@
 
     const shown = $derived([...explicit, ...byOverlap]);
     const placeholders = $derived(
-        shown.filter((m) => !m.thumbnailUrl).length
+        shown.filter((m) => !m.thumbnailUrl && m.kind !== "audio").length
     );
 
     let showKinds = $state(false);
