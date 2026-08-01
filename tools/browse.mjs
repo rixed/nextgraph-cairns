@@ -246,7 +246,10 @@ try {
             if (!h) return { error: "no 2019 header" };
             const items = [
                 ...h.nextElementSibling.querySelectorAll("li button"),
-            ].map((b) => b.querySelector("span").textContent.trim());
+            ].map((b) =>
+                // .font-medium is the title: a row may lead with a cover tile.
+                b.querySelector(".font-medium").textContent.trim()
+            );
             return { first3: items.slice(0, 3), count: items.length };
         });
         console.log("[2019 group]", JSON.stringify(g2019));
