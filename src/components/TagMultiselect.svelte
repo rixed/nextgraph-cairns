@@ -10,8 +10,15 @@
     // Wildcard scope: concepts from any scheme in the dataset (§5 — foreign
     // schemes are read when present).
     const concepts = useShape(ConceptShapeType, "did:ng:i");
+    // A concept can arrive before its label does — the subscription delivers
+    // an object as soon as it matches, and the remaining triples follow (§8,
+    // "partially loaded"). Sorting on a label that is not there yet crashed
+    // the editor, so absence is tolerated and resolves itself on the next
+    // update.
     const sorted = $derived(
-        [...concepts].sort((a, b) => a.prefLabel.localeCompare(b.prefLabel))
+        [...concepts].sort((a, b) =>
+            (a.prefLabel ?? "").localeCompare(b.prefLabel ?? "")
+        )
     );
 </script>
 
@@ -35,7 +42,7 @@
                         checked={selected.includes(c["@id"])}
                         onchange={() => ontoggle(c["@id"])}
                     />
-                    <span class="label-text">{c.prefLabel}</span>
+                    <span class="label-text">{c.prefLabel ?? "…"}</span>
                 </label>
             {/each}
         {/if}

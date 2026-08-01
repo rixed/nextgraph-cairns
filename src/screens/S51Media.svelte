@@ -83,7 +83,7 @@
     let failed = $state(false);
     $effect(() => {
         const m = media;
-        if (!m) return;
+        if (!m?.contentUrl) return; // still arriving; the next update retries
         let live = true;
         url = undefined;
         poster = undefined;

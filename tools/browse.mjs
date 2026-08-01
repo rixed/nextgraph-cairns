@@ -160,6 +160,57 @@ async function settle(frame, timeoutMs = 300000) {
     throw new Error("engine never became responsive");
 }
 
+/** How many browse rows carry exactly this title. */
+async function titleCount(frame, title) {
+    return await frame.evaluate(
+        (t) =>
+            [...document.querySelectorAll("li button .font-medium")].filter(
+                (e) => e.textContent.trim() === t
+            ).length,
+        title
+    );
+}
+
+/**
+ * Delete memories with this title through the app's own delete affordance,
+ * until only `keep` remain. Scenarios call this on the way out, so a headless
+ * run does not leave a row behind every time it passes.
+ */
+async function deleteDownTo(page, frame, title, keep) {
+    for (let guard = 0; guard < 25; guard++) {
+        await frame.evaluate(() => (location.hash = "#/"));
+        await page.waitForTimeout(2500);
+        const n = await titleCount(frame, title);
+        if (n <= keep) return n;
+        await frame.evaluate(
+            ([t, k]) => {
+                const rows = [...document.querySelectorAll("li button")].filter(
+                    (b) =>
+                        b.querySelector(".font-medium")?.textContent.trim() === t
+                );
+                rows[k].click();
+            },
+            [title, keep]
+        );
+        await frame
+            .getByRole("button", { name: "Delete" })
+            .click({ timeout: 60000 });
+        await frame.getByRole("button", { name: "Really delete" }).click();
+        await page.waitForTimeout(3000);
+    }
+    throw new Error(`could not reduce "${title}" to ${keep}`);
+}
+
+/** KEEP=1 leaves what a run created, for looking at it by hand afterwards. */
+async function cleanUp(page, frame, title, keep) {
+    if (process.env.KEEP) {
+        console.log(`(KEEP set: leaving "${title}" behind)`);
+        return;
+    }
+    const left = await deleteDownTo(page, frame, title, keep);
+    console.log(`[cleanup] "${title}" back to ${left}`);
+}
+
 const step = process.argv[2] ?? "inspect";
 
 const { ctx, page } = await launch();
@@ -204,6 +255,10 @@ try {
         console.log("seeded; back to app");
         await f.evaluate(() => (location.hash = "#/"));
         await waitSynced(f);
+        // Counted after the archive has rendered: a floor read too early
+        // would have this run delete memories it did not create.
+        await page.waitForTimeout(2000);
+        const vanYearsBefore = await titleCount(f, "The Van Year");
 
         console.log("=== capture The Van Year (gYear 2019) ===");
         await f.getByLabel("Capture a memory").click();
@@ -294,12 +349,17 @@ try {
                 : "FAIL: deleted memory still visible"
         );
         await shot(page, "m1-browse");
+        await cleanUp(page, f, "The Van Year", vanYearsBefore);
     } else if (step === "m2") {
         // Milestone 2 end-to-end: a memory dated inside the fixture corpus
         // picks up photographs by overlap, opens one, attaches it, and
         // suppresses another — the §3.9 "no" that must never be re-proposed.
         const f = await loginAndGetFrame(page);
         await settle(f);
+
+        await waitSynced(f);
+        await page.waitForTimeout(2000);
+        const testsBefore = await titleCount(f, "M2 media test");
 
         console.log("=== capture a memory on 2019-08-14 ===");
         await f.getByLabel("Capture a memory").click();
@@ -408,6 +468,7 @@ try {
                 : "FAIL: picker attachment not recorded"
         );
         await shot(page, "m2-strip");
+        await cleanUp(page, f2, "M2 media test", testsBefore);
     } else if (step === "headers") {
         const f = await loginAndGetFrame(page);
         await waitSynced(f);
@@ -679,6 +740,17 @@ try {
             "[text]",
             await f.evaluate(() => document.body.innerText.slice(0, 4000))
         );
+    } else if (step === "cleanup") {
+        // node browse.mjs cleanup "<title>" [keep] — remove residue left by
+        // earlier runs, through the app's own delete.
+        const f = await loginAndGetFrame(page);
+        await settle(f);
+        await waitSynced(f);
+        const title = process.argv[3];
+        const keep = Number(process.argv[4] ?? 1);
+        console.log(`[before] ${await titleCount(f, title)} × "${title}"`);
+        const left = await deleteDownTo(page, f, title, keep);
+        console.log(`[after] ${left} × "${title}"`);
     } else if (step === "devview") {
         // The developer view must be reachable from inside the wallet iframe
         // in a preview build, where neither the URL nor a build flag helps.
