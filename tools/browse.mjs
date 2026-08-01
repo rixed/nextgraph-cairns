@@ -58,7 +58,11 @@ export async function dump(page) {
 }
 
 async function loginAndGetFrame(page) {
-    await page.goto("http://localhost:4567/", { waitUntil: "networkidle" });
+    // Enter through the local auth server rather than the app: importing the
+    // wallet there is also what registers the local broker's bootstrap, which
+    // a virgin profile lacks (the app alone would redirect to nextgraph.net
+    // and be told no wallet exists).
+    await page.goto(AUTH_URL, { waitUntil: "networkidle" });
     await page.waitForTimeout(3000);
     const known = page.getByRole("button", { name: "user5", exact: true });
     if (await known.count()) {
