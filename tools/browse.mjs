@@ -1280,11 +1280,40 @@ try {
         console.log("OK: media, memories and tracks reached the map");
         await shot(page, "m5-space");
 
+        // §6.2's scrubber is bound to the filter, not to a state of its own:
+        // moving it has to show up in the shell's date facet.
+        const bounds = await f.evaluate(() => {
+            const i = document.querySelector('input[aria-label="From year"]');
+            return i ? { min: i.min, max: i.max } : null;
+        });
+        if (!bounds) throw new Error("no time scrubber");
+        const openFilter = async () => {
+            const up = await f.evaluate(() =>
+                document.body.innerText.includes("Tags match")
+            );
+            if (!up)
+                await f.getByRole("button", { name: /^Filter/ }).click();
+        };
+        await f.getByLabel("From year").fill(bounds.max);
+        await page.waitForTimeout(2500);
+        await openFilter();
+        const shown = await f
+            .locator('input[type="number"]')
+            .first()
+            .inputValue();
+        console.log(
+            shown === bounds.max
+                ? `OK: the scrubber moves the filter itself (from ${shown})`
+                : `FAIL: scrubber set ${bounds.max}, filter says ${shown}`
+        );
+        await f.getByRole("button", { name: "Clear the filter" }).click();
+        await page.waitForTimeout(3000);
+
         const before = counts.media;
         // The map and the shell have to agree about what is being browsed: a
         // filter that matches nothing replaces the projection with §8's blame
         // state, and dropping the facet brings the map back.
-        await f.getByRole("button", { name: "Filter", exact: true }).click();
+        await openFilter();
         await f
             .getByRole("button", { name: "any date", exact: true })
             .first()

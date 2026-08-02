@@ -9,7 +9,6 @@
     // the network costs geography and nothing else (spike 9, §8).
     //
     // Deferred, deliberately, until the structure is complete:
-    //   - the time scrubber bound to the filter's date range (§6.2);
     //   - a representative thumbnail on a cluster rather than a count (§3.4);
     //   - derived locations rendered distinctly — nothing derives one yet.
     //
@@ -36,7 +35,13 @@
         mediaMatching,
         type MatchContext,
     } from "../lib/browse.svelte";
-    import { formatPrecisionDate, parsePrecisionDate } from "../lib/dates";
+    import {
+        formatPrecisionDate,
+        memoryInterval,
+        parsePrecisionDate,
+    } from "../lib/dates";
+    import { takenAtMs } from "../lib/media";
+    import TimeScrubber from "../components/TimeScrubber.svelte";
 
     const memories = useShape(MemoryShapeType, "did:ng:i");
     const mediaFeed = useAllMedia();
@@ -96,6 +101,33 @@
             (m) => m.lat !== undefined && m.lon !== undefined
         )
     );
+
+    /**
+     * The archive's own span, for the scrubber to travel over. Everything
+     * dated counts, memories and photographs alike: a year with only pictures
+     * in it is still a year you can scrub to.
+     */
+    const span = $derived.by(() => {
+        const years: number[] = [];
+        for (const m of [...memories] as unknown as Memory[]) {
+            const s = parsePrecisionDate(m.startDate);
+            if (!s) continue;
+            const i = memoryInterval(s, parsePrecisionDate(m.endDate ?? undefined));
+            years.push(
+                new Date(i.earliest).getFullYear(),
+                new Date(i.latest).getFullYear()
+            );
+        }
+        for (const m of mediaFeed.all) {
+            const t = takenAtMs(m);
+            if (t !== undefined) years.push(new Date(t).getFullYear());
+        }
+        if (!years.length) return undefined;
+        const min = Math.min(...years);
+        const max = Math.max(...years);
+        // One year is not a range, and a slider that cannot move is furniture.
+        return min < max ? { min, max } : undefined;
+    });
 
     /** §8: say what the map cannot show rather than dropping it silently. */
     const placed = $derived(new Set(memoryPoints.map((p) => p.doc)).size);
@@ -340,6 +372,10 @@
         bind:this={container}
         class="w-full h-[60vh] min-h-72 rounded border border-base-300"
     ></div>
+
+    {#if span}
+        <TimeScrubber min={span.min} max={span.max} />
+    {/if}
 
     <div class="flex flex-wrap items-center gap-3 text-xs opacity-70">
         <span class="flex items-center gap-1">
