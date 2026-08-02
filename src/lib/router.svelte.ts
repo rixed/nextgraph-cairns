@@ -12,6 +12,9 @@ export type RouteName =
     | "placepicker" // S-32, params: start/end = the caller's span, for the
     //                 coordinates its photographs already carry
     | "here" // S-01
+    | "heard" // S-40
+    | "recommendation" // S-41, params: id = the one being edited, or
+    //                    item = a referent chosen before the editor opened
     | "people" // S-60
     | "person" // S-61, params: key = the person key (see lib/people.ts)
     | "me" // S-70
@@ -55,6 +58,12 @@ function toHash(r: Route): string {
             return "#/place";
         case "here":
             return "#/here";
+        case "heard":
+            return "#/heard";
+        case "recommendation":
+            return r.params?.id
+                ? `#/heard/${encodeURIComponent(r.params.id)}`
+                : "#/heard/new";
         case "people":
             return "#/people";
         case "person":
@@ -99,6 +108,18 @@ function fromHash(h: string): Route {
             ? { name: "place", params: { iri: decodeURIComponent(parts[1]) } }
             : { name: "placepicker" };
     if (parts[0] === "here") return { name: "here" };
+    // `#/heard` is the list; `#/heard/new` writes one; `#/heard/<iri>` edits
+    // one. A referent handed in by S-31 is not in the hash, so reloading the
+    // editor opens it with nothing chosen — which is a state it already has.
+    if (parts[0] === "heard")
+        return parts[1] === "new"
+            ? { name: "recommendation" }
+            : parts[1]
+              ? {
+                    name: "recommendation",
+                    params: { id: decodeURIComponent(parts[1]) },
+                }
+              : { name: "heard" };
     if (parts[0] === "people") return { name: "people" };
     if (parts[0] === "person" && parts[1])
         return { name: "person", params: { key: decodeURIComponent(parts[1]) } };

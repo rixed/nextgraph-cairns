@@ -11,6 +11,8 @@
     import S60People from "./screens/S60People.svelte";
     import S31PlaceDetail from "./screens/S31PlaceDetail.svelte";
     import S61Person from "./screens/S61Person.svelte";
+    import S40HeardAbout from "./screens/S40HeardAbout.svelte";
+    import S41RecommendationEditor from "./screens/S41RecommendationEditor.svelte";
     import S51Media from "./screens/S51Media.svelte";
     import S70Me from "./screens/S70Me.svelte";
     import S76Visible from "./screens/S76Visible.svelte";
@@ -30,6 +32,8 @@
         placepicker: S32PlacePicker,
         here: S01HereNow,
         people: S60People,
+        heard: S40HeardAbout,
+        recommendation: S41RecommendationEditor,
         person: S61Person,
         media: S51Media,
         me: S70Me,
@@ -43,12 +47,12 @@
     // it, when the picker hands its answer back (S-32, and S-72 later).
     const stack = $derived(router.stack);
 
-    // The five tabs of §6. Browse and Me are real; the rest are stubs.
+    // The five tabs of §6. All five are real screens now.
     const tabs: { label: string; icon: string; route?: Route }[] = [
         { label: "Here & Now", icon: "📍", route: { name: "here" } },
         { label: "Browse", icon: "🗂️", route: { name: "browse" } },
         { label: "People", icon: "👥", route: { name: "people" } },
-        { label: "Heard about", icon: "💡" },
+        { label: "Heard about", icon: "💡", route: { name: "heard" } },
         { label: "Me", icon: "🪪", route: { name: "me" } },
     ];
 
@@ -68,7 +72,10 @@
               router.current.name === "placepicker" ||
               (t.route.name === "me" && router.current.name === "visible") ||
               // S-61 is opened from People, and from a memory's attendees.
-              (t.route.name === "people" && router.current.name === "person")
+              (t.route.name === "people" && router.current.name === "person") ||
+              // S-41 is only ever reached from Heard about, or from a place.
+              (t.route.name === "heard" &&
+                  router.current.name === "recommendation")
             : router.current.name === "stub" &&
               router.current.params?.label === t.label;
 </script>
