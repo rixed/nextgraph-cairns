@@ -8,6 +8,7 @@ export type RouteName =
     | "editor"
     | "media" // S-51, params: doc = media document, from = memory that led here
     | "mediagrid" // S-22c, params: memory = the memory scoping the filter
+    | "place" // S-31, params: iri = the place
     | "placepicker" // S-32, params: start/end = the caller's span, for the
     //                 coordinates its photographs already carry
     | "here" // S-01
@@ -48,6 +49,8 @@ function toHash(r: Route): string {
             return r.params?.memory
                 ? `#/media-of/${encodeURIComponent(r.params.memory)}`
                 : "#/media";
+        case "place":
+            return `#/place/${encodeURIComponent(r.params!.iri)}`;
         case "placepicker":
             return "#/place";
         case "here":
@@ -90,7 +93,11 @@ function fromHash(h: string): Route {
     // Reloading onto the picker loses the caller it would return to, so it
     // opens as an ordinary screen and its choices go nowhere. Nothing is lost:
     // the caller is a half-written memory that reloading discarded anyway.
-    if (parts[0] === "place") return { name: "placepicker" };
+    // `#/place` is the picker; `#/place/<iri>` is one place's own screen.
+    if (parts[0] === "place")
+        return parts[1]
+            ? { name: "place", params: { iri: decodeURIComponent(parts[1]) } }
+            : { name: "placepicker" };
     if (parts[0] === "here") return { name: "here" };
     if (parts[0] === "people") return { name: "people" };
     if (parts[0] === "person" && parts[1])

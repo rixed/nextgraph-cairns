@@ -55,8 +55,8 @@
 
     /**
      * The locations this memory claims, resolved through the IRI join (§3.2).
-     * An identified place opens S-31, an unnamed one S-33 — neither is built,
-     * so both say so rather than being flattened into inert text.
+     * An identified place opens S-31; an unnamed one wants S-33, which is not
+     * built, so it says so rather than being flattened into inert text.
      */
     const locations = $derived(
         [...(memory?.location ?? [])].map((iri) => ({
@@ -143,14 +143,19 @@
                         <button
                             class="link link-hover text-left"
                             onclick={() =>
-                                router.push({
-                                    name: "stub",
-                                    params: {
-                                        label: loc.identified
-                                            ? "Place detail (S-31)"
-                                            : "Unnamed place editor (S-33)",
-                                    },
-                                })}
+                                router.push(
+                                    loc.identified
+                                        ? {
+                                              name: "place",
+                                              params: { iri: loc.iri },
+                                          }
+                                        : {
+                                              name: "stub",
+                                              params: {
+                                                  label: "Unnamed place editor (S-33)",
+                                              },
+                                          }
+                                )}
                         >
                             {loc.identified ? "📍" : "✛"}
                             {placeLabel(loc.place, loc.iri)}

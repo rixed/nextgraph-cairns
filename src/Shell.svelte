@@ -9,6 +9,7 @@
     import S32PlacePicker from "./screens/S32PlacePicker.svelte";
     import S01HereNow from "./screens/S01HereNow.svelte";
     import S60People from "./screens/S60People.svelte";
+    import S31PlaceDetail from "./screens/S31PlaceDetail.svelte";
     import S61Person from "./screens/S61Person.svelte";
     import S51Media from "./screens/S51Media.svelte";
     import S70Me from "./screens/S70Me.svelte";
@@ -25,6 +26,7 @@
         detail: S20Detail,
         editor: S21Editor,
         mediagrid: S22cMedia,
+        place: S31PlaceDetail,
         placepicker: S32PlacePicker,
         here: S01HereNow,
         people: S60People,
