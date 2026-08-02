@@ -1,6 +1,7 @@
 <script lang="ts">
     // S-22c Media projection: the grid of discovered media, grouped by day.
-    // Opened whole, or scoped to one memory from S-20 — which, per §6.2, is
+    // Rendered inside the S-22 shell, whose filter and selection it reads — or
+    // as a screen of its own scoped to one memory from S-20, which per §6.2 is
     // only a pre-set filter rather than a different screen.
     //
     // Thumbnails only, never a full-size image shrunk to fit (§3.4, B-01);
@@ -20,15 +21,21 @@
         type Media,
     } from "../lib/media";
     import { isMediaSuppressed } from "../lib/rejections.svelte";
+    import { useAllPlaces } from "../lib/places";
+    import {
+        browse,
+        mediaMatching,
+        type MatchContext,
+    } from "../lib/browse.svelte";
     import { router } from "../lib/router.svelte";
     import MediaTile from "../components/MediaTile.svelte";
-    import ProjectionSwitcher from "../components/ProjectionSwitcher.svelte";
     import { parsePrecisionDate, formatPrecisionDate } from "../lib/dates";
 
     const scopedTo = router.current.params?.memory;
 
     const memories = useShape(MemoryShapeType, "did:ng:i");
     const feed = useAllMedia();
+    const places = useAllPlaces();
 
     let ready = $state(false);
     mediaReady().then(() => (ready = true));
@@ -42,8 +49,19 @@
             : undefined
     );
 
+    const ctx: MatchContext = $derived({
+        media: all,
+        places: places.all,
+        isSuppressed: isMediaSuppressed,
+    });
+
     const shown = $derived.by(() => {
-        if (!scopedTo) return all;
+        if (!scopedTo)
+            return mediaMatching(
+                [...memories] as unknown as Memory[],
+                browse.facets,
+                ctx
+            );
         if (!memory) return [];
         const explicit = [...(memory.subjectOf ?? [])];
         const span = spanOf(memory.startDate, memory.endDate);
@@ -128,27 +146,32 @@
 
     const shownGroups = $derived(groupBy === "day" ? groups : byMemory);
 
-    const open = (m: Media) =>
+    /** In selection mode a tile is picked rather than opened (§4.4). */
+    const activate = (m: Media) => {
+        if (browse.selecting && !scopedTo) {
+            browse.toggle(m.doc);
+            return;
+        }
         router.push({
             name: "media",
             params: scopedTo ? { doc: m.doc, from: scopedTo } : { doc: m.doc },
         });
+    };
 </script>
 
-<div class="p-4 max-w-4xl mx-auto">
-    <div class="flex items-center gap-2 mb-2">
-        {#if router.depth > 1}
-            <button class="btn btn-ghost btn-sm" onclick={() => router.pop()}>
-                ← back
-            </button>
-        {/if}
-        <h1 class="text-xl font-bold">
-            {scopedTo ? "Photographs of this memory" : "Photographs"}
-        </h1>
-    </div>
-
-    {#if !scopedTo}
-        <ProjectionSwitcher current="media" />
+<div class={scopedTo ? "p-4 max-w-4xl mx-auto" : ""}>
+    {#if scopedTo}
+        <div class="flex items-center gap-2 mb-2">
+            {#if router.depth > 1}
+                <button
+                    class="btn btn-ghost btn-sm"
+                    onclick={() => router.pop()}
+                >
+                    ← back
+                </button>
+            {/if}
+            <h1 class="text-xl font-bold">Photographs of this memory</h1>
+        </div>
     {/if}
 
     {#if !ready}
@@ -158,7 +181,14 @@
         </div>
     {/if}
 
-    {#if ready && shown.length === 0}
+    {#if ready && shown.length === 0 && browse.active && !scopedTo}
+        <div class="text-center py-16 flex flex-col items-center gap-3">
+            <p class="opacity-70">No photographs match this filter.</p>
+            <button class="btn btn-sm" onclick={() => browse.clear()}>
+                Clear the filter
+            </button>
+        </div>
+    {:else if ready && shown.length === 0}
         <div class="text-center py-16 opacity-70">
             <p>No photographs here.</p>
             <p class="text-sm mt-2">
@@ -206,8 +236,14 @@
                 class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1 my-2"
             >
                 {#each group.items as m (m.doc)}
-                    <div class="flex flex-col gap-0.5">
-                        <MediaTile media={m} onclick={() => open(m)} />
+                    <div
+                        class="flex flex-col gap-0.5 rounded"
+                        class:ring-2={browse.selecting &&
+                            browse.isSelected(m.doc)}
+                        class:ring-primary={browse.selecting &&
+                            browse.isSelected(m.doc)}
+                    >
+                        <MediaTile media={m} onclick={() => activate(m)} />
                         {#if showKinds}
                             <span class="text-[10px] opacity-60 text-center">
                                 {attachedHere.has(m.doc)

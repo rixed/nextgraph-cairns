@@ -2,10 +2,11 @@
     import { router, type Route } from "./lib/router.svelte";
     import { sessionPromise } from "./lib/ngSession";
     import { bindRejections } from "./lib/rejections.svelte";
-    import S22aTime from "./screens/S22aTime.svelte";
+    import S22Browse from "./screens/S22Browse.svelte";
     import S20Detail from "./screens/S20Detail.svelte";
     import S21Editor from "./screens/S21Editor.svelte";
     import S22cMedia from "./screens/S22cMedia.svelte";
+    import S32PlacePicker from "./screens/S32PlacePicker.svelte";
     import S51Media from "./screens/S51Media.svelte";
     import S70Me from "./screens/S70Me.svelte";
     import S76Visible from "./screens/S76Visible.svelte";
@@ -17,10 +18,11 @@
     bindRejections();
 
     const screens = {
-        browse: S22aTime,
+        browse: S22Browse,
         detail: S20Detail,
         editor: S21Editor,
         mediagrid: S22cMedia,
+        placepicker: S32PlacePicker,
         media: S51Media,
         me: S70Me,
         visible: S76Visible,
@@ -28,11 +30,10 @@
         stub: Stub,
     } as const;
 
-    const Current = $derived(screens[router.current.name]);
-    // Remount the screen when the route (not just a param mutation) changes.
-    const routeKey = $derived(
-        `${router.current.name}|${router.current.params?.doc ?? router.current.params?.memory ?? router.current.params?.label ?? ""}|${router.depth}`
-    );
+    // Every entry of the stack stays mounted and only the last is shown. A
+    // screen that pushed a picker is still there, with everything typed into
+    // it, when the picker hands its answer back (S-32, and S-72 later).
+    const stack = $derived(router.stack);
 
     // The five tabs of §6. Browse and Me are real; the rest are stubs.
     const tabs: { label: string; icon: string; route?: Route }[] = [
@@ -56,6 +57,7 @@
               // The projections and what they open into are all Browse.
               router.current.name === "mediagrid" ||
               router.current.name === "media" ||
+              router.current.name === "placepicker" ||
               (t.route.name === "me" && router.current.name === "visible")
             : router.current.name === "stub" &&
               router.current.params?.label === t.label;
@@ -68,11 +70,14 @@
             <p class="mt-4 opacity-70">Connecting to your NextGraph session…</p>
         </div>
     {:then}
-        {#key routeKey}
-            <Current />
-        {/key}
+        {#each stack as route, i (route.key)}
+            {@const Screen = screens[route.name]}
+            <div class:hidden={i !== stack.length - 1}>
+                <Screen />
+            </div>
+        {/each}
 
-        {#if router.current.name !== "editor"}
+        {#if router.current.name !== "editor" && router.current.name !== "placepicker"}
             <button
                 class="btn btn-primary btn-circle btn-lg fixed bottom-20 right-4 z-20 shadow-lg"
                 aria-label="Capture a memory"

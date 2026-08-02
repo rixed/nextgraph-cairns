@@ -198,6 +198,16 @@ export function today(): PrecisionDate {
     };
 }
 
+/** A day, from an instant — what a photograph's capture time says it is. */
+export function dayOf(ms: number): PrecisionDate {
+    const d = new Date(ms);
+    const p = (n: number) => String(n).padStart(2, "0");
+    return {
+        lexical: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`,
+        precision: "day",
+    };
+}
+
 /** Truncate/extend a lexical form to a new precision (for the picker switch). */
 export function atPrecision(
     d: PrecisionDate | undefined,

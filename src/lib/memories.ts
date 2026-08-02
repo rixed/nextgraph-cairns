@@ -112,6 +112,51 @@ export async function updateMemory(
 }
 
 /**
+ * Add concepts to many memories at once — the common bulk action (§4.4).
+ * One update per document, because a document is the unit a write commits to;
+ * they run in sequence so a failure stops rather than half-applies.
+ */
+export async function addTags(
+    docs: string[],
+    tags: string[]
+): Promise<void> {
+    if (!tags.length) return;
+    const s = await sessionPromise;
+    for (const doc of docs) {
+        const t = tags
+            .map((tag) => `<${doc}> dcterms:subject <${tag}>`)
+            .join(" .\n");
+        await s.ng.sparql_update(
+            s.session_id,
+            `${SPARQL_PREFIXES}
+             INSERT DATA { GRAPH <${doc}> {\n${t} .\n} }`,
+            doc
+        );
+    }
+}
+
+/** The reverse: untag in bulk. A tag that was not there is not an error. */
+export async function removeTags(
+    docs: string[],
+    tags: string[]
+): Promise<void> {
+    if (!tags.length) return;
+    const s = await sessionPromise;
+    for (const doc of docs) {
+        const ops = tags.map(
+            (tag) =>
+                `DELETE DATA { GRAPH <${doc}> {
+                    <${doc}> dcterms:subject <${tag}> } }`
+        );
+        await s.ng.sparql_update(
+            s.session_id,
+            `${SPARQL_PREFIXES}\n` + ops.join(" ;\n"),
+            doc
+        );
+    }
+}
+
+/**
  * Delete a memory: drop every triple of its document. Recovery is the
  * framework's commit history (§1.2) — nothing is rewritten, a new commit
  * removes the current state.

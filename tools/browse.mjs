@@ -268,8 +268,11 @@ try {
         await f.getByPlaceholder("One line, shown in lists").fill(
             "Living in the van"
         );
-        await f.locator("summary", { hasText: "Tags" }).click();
-        await f.getByText("van-year", { exact: true }).first().click();
+        // Scoped to the dropdown: the shell keeps the screen below this one
+        // mounted (hidden), and its tag chips carry the same labels.
+        const editorTags = f.locator("details.dropdown").last();
+        await editorTags.locator("summary").click();
+        await editorTags.getByText("van-year", { exact: true }).click();
         await f.getByRole("button", { name: "Save", exact: true }).click();
         await page.waitForTimeout(3000);
         let txt = await f.evaluate(() => document.body.innerText);
@@ -397,7 +400,10 @@ try {
 
         console.log("=== open one, attach it ===");
         await f.locator("section .w-24 button").first().click();
-        await f.getByText("Document").waitFor({ timeout: 60000 });
+        // Exact: the paragraph below the metadata says "document" too.
+        await f
+            .getByText("Document", { exact: true })
+            .waitFor({ timeout: 60000 });
         const detail = await f.evaluate(() => document.body.innerText);
         console.log(
             detail.includes("Taken") && detail.includes("did:ng:o:")
@@ -469,6 +475,205 @@ try {
         );
         await shot(page, "m2-strip");
         await cleanUp(page, f2, "M2 media test", testsBefore);
+    } else if (step === "m3") {
+        // Milestone 3 end-to-end: claim a location through the picker, read it
+        // back on the memory, filter the archive by it, and bulk-tag a
+        // selection. Everything this run creates, it deletes on the way out.
+        const f = await loginAndGetFrame(page);
+        await waitSynced(f);
+        await page.waitForTimeout(2000);
+        const TITLE = "M3 place test";
+        const before = await titleCount(f, TITLE);
+
+        console.log("=== capture a memory with a dropped pin ===");
+        await f.getByLabel("Capture a memory").click();
+        await f.getByPlaceholder("Optional").fill(TITLE);
+        await f.getByRole("button", { name: "+ add a location" }).click();
+        await f
+            .getByPlaceholder("What you call it (optional)")
+            .fill("the beach below the road", { timeout: 60000 });
+        await f.getByPlaceholder("Latitude").fill("38.68");
+        await f.getByPlaceholder("Longitude").fill("-9.33");
+        await f.getByRole("button", { name: "Use these coordinates" }).click();
+        // Back in the editor, with everything typed into it still there: the
+        // shell keeps the stack mounted so a picker can hand a value back.
+        const inEditor = await f.evaluate(
+            () =>
+                document.querySelector('input[placeholder="Optional"]')?.value
+        );
+        console.log(
+            inEditor === TITLE
+                ? "OK: the editor survived the picker"
+                : `FAIL: the editor lost its state (title now ${JSON.stringify(inEditor)})`
+        );
+        const chip = await f.evaluate(() =>
+            document.body.innerText.includes("the beach below the road")
+        );
+        console.log(
+            chip
+                ? "OK: the dropped pin came back as a location"
+                : "FAIL: no location in the editor"
+        );
+        await f.getByRole("button", { name: "Save", exact: true }).click();
+        await page.waitForTimeout(4000);
+
+        console.log("=== the memory shows what it claims ===");
+        let txt = await f.evaluate(() => document.body.innerText);
+        console.log(
+            txt.includes("the beach below the road")
+                ? "OK: S-20 resolves the location by joining on the IRI"
+                : `FAIL: no location on the detail screen:\n${txt.slice(0, 400)}`
+        );
+
+        console.log("=== both forms of coordinates were written ===");
+        const coords = await f.evaluate(() =>
+            window.spikeSelect(
+                `PREFIX schema: <https://schema.org/>
+                 PREFIX geo: <http://www.w3.org/2003/01/geo/wgs84_pos#>
+                 SELECT ?lat ?glat WHERE { GRAPH ?g {
+                    ?p schema:name "the beach below the road" ;
+                       geo:lat ?lat ;
+                       schema:geo ?geo .
+                    ?geo schema:latitude ?glat } }`
+            )
+        );
+        const row = coords?.[0];
+        console.log(
+            row?.lat?.value === "38.68" && row?.glat?.value === "38.68"
+                ? "OK: flat pair and schema:geo agree"
+                : `FAIL: coordinates written as ${JSON.stringify(coords)}`
+        );
+        console.log(
+            row?.lat?.datatype?.endsWith("#decimal")
+                ? "OK: coordinates kept their xsd:decimal datatype"
+                : `FAIL: datatype is ${row?.lat?.datatype}`
+        );
+
+        console.log("=== edit the memory: the location must survive ===");
+        // Rewriting a memory drops and re-mints its unnamed places, so this is
+        // the path where a location silently becomes 0,0 if the editor
+        // initialises before the place subscription has answered (§8).
+        await f.getByRole("button", { name: "Edit" }).click();
+        await f
+            .getByPlaceholder("One line, shown in lists")
+            .fill("edited once", { timeout: 60000 });
+        await f.getByRole("button", { name: "Save", exact: true }).click();
+        await page.waitForTimeout(4000);
+        txt = await f.evaluate(() => document.body.innerText);
+        console.log(
+            txt.includes("the beach below the road") && txt.includes("edited once")
+                ? "OK: the location survived an edit"
+                : `FAIL: after editing:\n${txt.slice(0, 400)}`
+        );
+        const afterEdit = await f.evaluate(() =>
+            window.spikeSelect(
+                `PREFIX schema: <https://schema.org/>
+                 PREFIX geo: <http://www.w3.org/2003/01/geo/wgs84_pos#>
+                 SELECT ?p ?lat WHERE { GRAPH ?g {
+                    ?p schema:name "the beach below the road" ; geo:lat ?lat } }`
+            )
+        );
+        console.log(
+            afterEdit?.length === 1 && afterEdit[0].lat.value === "38.68"
+                ? "OK: one place, coordinates intact, no orphan left behind"
+                : `FAIL: after the rewrite ${JSON.stringify(afterEdit)}`
+        );
+
+        console.log("=== filter the archive down to nothing, and be told why ===");
+        await f.getByRole("button", { name: "← back" }).click();
+        await waitSynced(f);
+        await f.getByRole("button", { name: /^Filter/ }).click();
+        await f.getByLabel("has photographs").check();
+        // Scoped to the dropdown: the same label appears as a tag chip on the
+        // rows below, where clicking it would select a memory instead.
+        const filterTags = f.locator("details.dropdown").first();
+        await filterTags.locator("summary").click();
+        await filterTags.getByText("van-year", { exact: true }).click();
+        // Closed again: an open dropdown covers what is under it.
+        await filterTags.locator("summary").click();
+        await page.waitForTimeout(1500);
+        txt = await f.evaluate(() => document.body.innerText);
+        const narrowed = txt.match(/(\d+) of (\d+) memories/);
+        console.log(
+            "[counts]",
+            narrowed?.[0],
+            narrowed && +narrowed[1] < +narrowed[2]
+                ? "OK: the filter narrowed the archive"
+                : "FAIL: the filter bar changed nothing"
+        );
+
+        // A date range with nothing in it: the empty state must name the facet
+        // most likely responsible and offer to drop it (§8).
+        await f.getByRole("button", { name: "any date", exact: true })
+            .first()
+            .click();
+        await f.getByRole("button", { name: "any date", exact: true })
+            .first()
+            .click();
+        for (const i of [0, 1])
+            await f.locator('input[type="number"]').nth(i).fill("2000");
+        await page.waitForTimeout(2000);
+        txt = await f.evaluate(() => document.body.innerText);
+        console.log(
+            /is the narrowest part of this filter/.test(txt)
+                ? "OK: an empty result names the facet to blame (§8)"
+                : `FAIL: no blame line:\n${txt.slice(0, 400)}`
+        );
+        await f.getByRole("button", { name: "Drop it" }).click();
+        await page.waitForTimeout(2000);
+        txt = await f.evaluate(() => document.body.innerText);
+        console.log(
+            !/is the narrowest part of this filter/.test(txt)
+                ? "OK: dropping the facet brought the memories back"
+                : "FAIL: dropping the facet changed nothing"
+        );
+        await f.getByRole("button", { name: "Clear the filter" }).click();
+        await page.waitForTimeout(1500);
+
+        console.log("=== select and bulk-tag ===");
+        await f.getByRole("button", { name: "Select", exact: true }).click();
+        await f.evaluate((t) => {
+            const rows = [...document.querySelectorAll("li button")].filter(
+                (b) => b.querySelector(".font-medium")?.textContent.trim() === t
+            );
+            rows[0].click();
+        }, TITLE);
+        await page.waitForTimeout(500);
+        await f.getByRole("button", { name: "Tag these" }).click();
+        const bulkTags = f.locator("details.dropdown").last();
+        await bulkTags.locator("summary").click();
+        await bulkTags.getByText("portugal", { exact: true }).click();
+        await bulkTags.locator("summary").click();
+        console.log(
+            "[selection]",
+            await f.evaluate(
+                () =>
+                    document
+                        .querySelector(".sticky.top-0.z-10")
+                        ?.innerText.split("\n")[0] ?? "(no selection bar)"
+            )
+        );
+        await f.getByRole("button", { name: /^Add to 1$/ }).click();
+        await page.waitForTimeout(4000);
+        const tagged = await f.evaluate(
+            (t) =>
+                window.spikeSelect(
+                    `PREFIX schema: <https://schema.org/>
+                     PREFIX dcterms: <http://purl.org/dc/terms/>
+                     PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+                     SELECT ?label WHERE {
+                        GRAPH ?g { ?m schema:name "${t}" ; dcterms:subject ?c }
+                        GRAPH ?h { ?c skos:prefLabel ?label } }`
+                ),
+            TITLE
+        );
+        console.log(
+            tagged?.some((r) => r.label?.value === "portugal")
+                ? "OK: the bulk action tagged the selection"
+                : `FAIL: tags now ${JSON.stringify(tagged)}`
+        );
+        await shot(page, "m3-browse");
+        await cleanUp(page, f, TITLE, before);
     } else if (step === "headers") {
         const f = await loginAndGetFrame(page);
         await waitSynced(f);
