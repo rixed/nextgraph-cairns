@@ -1371,6 +1371,30 @@ try {
             await page.waitForTimeout(2000);
         }
         console.log("[cleanup] filter empty");
+    } else if (step === "spike10") {
+        // Recommendations live many-to-a-document and that document is mutated
+        // for the rest of its life. Does a live subscription notice a sibling
+        // appearing beside one it already holds?
+        const f = await loginAndGetFrame(page);
+        await f.evaluate(() => (location.hash = "#/dev"));
+        await page.waitForTimeout(1000);
+        await f.getByRole("tab", { name: "10 · list doc" }).click();
+        await settle(f);
+
+        await click(f, "1 · list + one item");
+        await waitForLog(f, "list document with one item", 60000);
+        await click(f, "2 · append a sibling");
+        await waitForLog(f, "subscription went", 60000);
+        await click(f, "3 · what comes back");
+        await page.waitForTimeout(2000);
+        await click(f, "4 · delete one item");
+        await waitForLog(f, "after deleting one", 60000);
+        console.log("[log]\n" + (await readLog(f)));
+
+        // Self-cleaning: the shared devstack must be left as it was found.
+        await click(f, "5 · clean up");
+        await waitForLog(f, "deleted the spike", 60000);
+        console.log("[cleanup] spike 10 list document removed");
     } else if (step === "spike9") {
         // Does MapLibre run here at all — headless, in the auth server's
         // iframe, beside the WASM engine — and how does it fail without tiles?

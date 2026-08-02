@@ -10,6 +10,7 @@
     import Spike7Locations from "../spikes/Spike7Locations.svelte";
     import Spike8Promotion from "../spikes/Spike8Promotion.svelte";
     import Spike9Map from "../spikes/Spike9Map.svelte";
+    import Spike10List from "../spikes/Spike10List.svelte";
     import Backfill from "../spikes/Backfill.svelte";
     import SeedForeign from "../spikes/SeedForeign.svelte";
     import { appendConcept } from "../lib/tags";
@@ -25,6 +26,7 @@
         { name: "7 · locations", component: Spike7Locations },
         { name: "8 · promotion", component: Spike8Promotion },
         { name: "9 · map", component: Spike9Map },
+        { name: "10 · list doc", component: Spike10List },
         { name: "backfill", component: Backfill },
         { name: "seed foreign", component: SeedForeign },
     ];

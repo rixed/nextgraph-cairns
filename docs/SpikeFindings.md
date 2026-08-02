@@ -359,6 +359,46 @@ by dynamic import so the other four tabs never pay for it. Not measured yet.
 rather than 106; and whether the WASM engine and MapLibre contend for the main thread during
 a large sync.
 
+## Spike 10 — one document, many mutable subjects
+
+**Question.** Recommendations (§4.1) are the first thing this app owns that does not get a
+document each: they are subjects inside a single `schema:ItemList` document (§3.7), and that
+document is mutated in place for the rest of its life — appended to today, edited next month,
+one item deleted the month after. Every owned write so far created a *fresh* document
+instead, so four things had never been asked of the engine:
+
+1. does a live wildcard subscription notice a **new sibling subject** appearing in a document
+   it is already holding, or must the screen reload?
+2. does deleting one item leave its siblings, and the list itself, intact?
+3. does a precision-aware date (§3.1) round-trip on a subject that is not a memory?
+4. does the referent read back as a plain IRI?
+
+**Answer: yes to all four, and the pattern is cheaper than the alternative.**
+
+- **A sibling appended to a watched document is delivered reactively.** The subscription went
+  1 → 2 with no reload and no re-subscription. This is what lets S-40 subscribe and S-41
+  simply write, with no refresh seam between the two screens — the same relationship S-21 and
+  S-22 already have, achieved without a document each.
+- **Deleting one item is surgical.** `DELETE WHERE` on the membership triple and then on the
+  item's own triples left the sibling and the `schema:ItemList` subject untouched, and the
+  subscription dropped to 1. Two statements, because a single conjunctive pattern would match
+  nothing for an item that was never linked — the same lesson as `dropNestedPlaces`.
+- **Datatypes survive on any subject.** `xsd:gYearMonth` and `xsd:date` came back from SPARQL
+  intact; the ORM hands over the lexical form, from which `parsePrecisionDate` recovers the
+  precision, exactly as it does for a memory's `schema:startDate`. Nothing about spike 2's
+  answer was specific to memories.
+- **`schema:item` reads back as a plain IRI**, as spike 7 predicted. The referent join to a
+  place or an event is the same by-IRI join `lib/places.ts` already does.
+
+**An incidental number.** Appending a sibling took **12 ms**; creating the document took
+**115 ms**. Many-subjects-per-document is an order of magnitude cheaper per item than
+doc-per-object, which is worth remembering the next time the doc grain is chosen — and quietly
+justifies §3.7 giving recommendations one list rather than a document each.
+
+**Still unknown.** Whether one list document stays comfortable at a few thousand items, and
+what concurrent edits from two devices to two different items in the same document do — the
+CRDT should merge them, and nothing here tested it.
+
 ## Environment notes
 
 - Wallets pin the broker's peer key: after `make reset`/re-key of the devstack, old
@@ -436,3 +476,18 @@ a large sync.
    the second application of that answer, and the first test of whether it generalises.
 4. A large promotion is visible while it runs. Screens should not assume the archive changes
    in one step, which is the same discipline §8 already asks for.
+
+## What this means for milestone 6
+
+1. Recommendations get **one list document, many fragment subjects** — `<list>#rec-<n>` — read
+   through `app:RecommendationShape` over the wildcard scope like every other shape. No
+   reload after a save; S-40 sees what S-41 wrote.
+2. The referent (`schema:item`) is a **reference to a place or an event, never nested**. The
+   thing recommended has identity of its own, or it is not recommendable.
+3. "Who told you" is one property per kind, not a union: `prov:wasAttributedTo` for a contact,
+   `dcterms:source` as a string for a URL or free text. Spike 7's rule — never a union the ORM
+   cannot read back — applies here without needing to be rediscovered.
+4. Events are read by SPARQL rather than through a shape, because a `schema:Event` shape would
+   also match every memory (`app:Memory` ⊑ `schema:Event`, §3). `FILTER NOT EXISTS { ?s a
+   app:Memory }` is the whole difference, and it belongs in a query, not in a shape fighting
+   the codegen.

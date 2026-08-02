@@ -1,0 +1,39 @@
+PREFIX app: <did:ng:z:cairns/>
+PREFIX schema: <https://schema.org/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+# A recommendation (Specs §4.1): "Ana told me about this in March", not "I plan
+# to go here". Provenance first, which is what keeps it in a memory app.
+#
+# Unlike every other object the app owns, these do not get a document each: they
+# are subjects inside one list document (§3.7), addressed by fragment, exactly
+# as an unnamed location is a subject inside its memory. Spike 7 established
+# that the ORM reads such subjects over the wildcard scope; spike 10 established
+# that it also notices new ones appearing in a document it is already watching.
+#
+# EXTRA a: an item asserts both app:Recommendation and schema:ListItem, for the
+# same reason a memory asserts schema:Event — legibility to an application that
+# has never heard of Cairns.
+app:RecommendationShape EXTRA a {
+  a [app:Recommendation] ;
+  # The referent: a place or an event (§4.2). A reference, never nested — the
+  # thing recommended has identity of its own, or it is not recommendable.
+  schema:item IRI ;
+  # Who told you, as a contact.
+  prov:wasAttributedTo IRI ? ;
+  # Who told you, when they are not a contact: a URL or free text (§4.1). Held
+  # as a string in both cases rather than as an IRI-or-literal union, which
+  # spike 7 showed the ORM cannot read back; the app links it when it parses as
+  # a URL. One property, one datatype, and no information lost.
+  dcterms:source xsd:string ? ;
+  # When you were told — precision-aware (§3.1), and optional, because "Ana
+  # mentioned this at some point" is a complete record.
+  dcterms:date xsd:dateTime OR xsd:date OR xsd:gYearMonth OR xsd:gYear ? ;
+  # What they said about it.
+  schema:description xsd:string ? ;
+  dcterms:subject IRI * ;
+  # The memory that fulfilled it, set when one is captured there (§6.2, S-21).
+  schema:about IRI ? ;
+}
