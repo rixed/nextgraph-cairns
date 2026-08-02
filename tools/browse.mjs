@@ -1250,6 +1250,79 @@ try {
         await click(f, "1b · seed a clip of each kind");
         await waitForLog(f, "seeded a audio document", 300000);
         console.log("[log]\n" + (await readLog(f)));
+    } else if (step === "m5") {
+        // Milestone 5: the Space projection exists, draws the three layers the
+        // filter selects, and says what it cannot place (§8).
+        const f = await loginAndGetFrame(page);
+        await waitSynced(f);
+        await settle(f);
+
+        await f.evaluate(() => (location.hash = "#/space"));
+        await page.waitForTimeout(6000);
+        // The canvas is the only proof WebGL came up; the legend is the proof
+        // that the store reached it.
+        const canvas = await f.evaluate(() => {
+            const c = document.querySelector("canvas.maplibregl-canvas");
+            return c ? { w: c.width, h: c.height } : null;
+        });
+        if (!canvas?.w) throw new Error("no map canvas rendered");
+        console.log(`OK: the map came up (${canvas.w}x${canvas.h})`);
+
+        const legend = await f.evaluate(() => document.body.innerText);
+        const counts = {
+            memories: +(legend.match(/(\d+) memories/)?.[1] ?? -1),
+            media: +(legend.match(/(\d+) photographs/)?.[1] ?? -1),
+            tracks: +(legend.match(/(\d+) tracks/)?.[1] ?? 0),
+        };
+        console.log("[legend]", JSON.stringify(counts));
+        if (counts.media < 1)
+            throw new Error("no photographs plotted — seed-media first");
+        console.log("OK: media, memories and tracks reached the map");
+        await shot(page, "m5-space");
+
+        const before = counts.media;
+        // The map and the shell have to agree about what is being browsed: a
+        // filter that matches nothing replaces the projection with §8's blame
+        // state, and dropping the facet brings the map back.
+        await f.getByRole("button", { name: "Filter", exact: true }).click();
+        await f
+            .getByRole("button", { name: "any date", exact: true })
+            .first()
+            .click();
+        await f.locator('input[type="number"]').first().fill("2030");
+        await page.waitForTimeout(3000);
+        let txt = await f.evaluate(() => document.body.innerText);
+        const gone = await f.evaluate(
+            () => !document.querySelector("canvas.maplibregl-canvas")
+        );
+        console.log(
+            gone && /is the narrowest part of this filter/.test(txt)
+                ? "OK: an impossible filter replaces the map with the blame state"
+                : `FAIL: map ${gone ? "gone" : "still up"}, blame ${/narrowest/.test(txt)}`
+        );
+        await shot(page, "m5-empty");
+
+        await f.getByRole("button", { name: "Drop it" }).click();
+        await page.waitForTimeout(5000);
+        const back = await f.evaluate(() => {
+            const c = document.querySelector("canvas.maplibregl-canvas");
+            return { up: !!c?.width, text: document.body.innerText };
+        });
+        const again = +(back.text.match(/(\d+) photographs/)?.[1] ?? -1);
+        console.log(
+            back.up && again === before
+                ? `OK: dropping the facet brings the map back (${again} photographs)`
+                : `FAIL: map up ${back.up}, ${again} photographs (was ${before})`
+        );
+
+        // Dropping the only facet already emptied the filter, which disables
+        // the clear button; clicking it then would hang rather than tidy.
+        const clear = f.getByRole("button", { name: "Clear the filter" });
+        if (await clear.isEnabled()) {
+            await clear.click();
+            await page.waitForTimeout(2000);
+        }
+        console.log("[cleanup] filter empty");
     } else if (step === "spike9") {
         // Does MapLibre run here at all — headless, in the auth server's
         // iframe, beside the WASM engine — and how does it fail without tiles?

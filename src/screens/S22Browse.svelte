@@ -49,6 +49,7 @@
     import PrecisionDatePicker from "../components/PrecisionDatePicker.svelte";
     import TagMultiselect from "../components/TagMultiselect.svelte";
     import S22aTime from "./S22aTime.svelte";
+    import S22bSpace from "./S22bSpace.svelte";
     import S22cMedia from "./S22cMedia.svelte";
 
     const projection = (router.current.params?.projection ??
@@ -238,10 +239,6 @@
         browse.stopSelecting();
         router.push({ name: "editor" });
     }
-
-    const withoutLocation = $derived(
-        filtered.filter((m) => !m.location?.size).length
-    );
 </script>
 
 <div class="p-4 max-w-4xl mx-auto">
@@ -527,27 +524,6 @@
     {:else if projection === "media"}
         <S22cMedia />
     {:else}
-        <!-- S-22b: the map itself is the next slice. What can already be said
-             is said (§8, "no spatial presence"). -->
-        <div class="py-10 text-center flex flex-col gap-2 items-center">
-            <p class="opacity-70">The map is not built yet.</p>
-            {#if ready}
-                <p class="text-sm opacity-60">
-                    {filtered.length - withoutLocation} of {filtered.length}
-                    memories here claim a location; {withoutLocation} would not appear
-                    on a map at all.
-                </p>
-                <button
-                    class="btn btn-sm"
-                    onclick={() =>
-                        router.replaceRoot({
-                            name: "browse",
-                            params: { projection: "time" },
-                        })}
-                >
-                    Show them in time
-                </button>
-            {/if}
-        </div>
+        <S22bSpace />
     {/if}
 </div>

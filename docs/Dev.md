@@ -34,6 +34,24 @@ up and the app served (`make run`). The documents land in the user's store like
 any other, and Cairns then discovers them by SPARQL — which is the whole point.
 
 
+
+## The map
+
+MapLibre GL JS, per the README's stack. Two things about the build are not
+obvious and are easy to undo by accident (SpikeFindings, spike 9):
+
+  - `src/lib/mapStyle.ts` calls `setWorkerUrl` with a `?worker&url` import.
+    Without it MapLibre computes a worker URL that bundling invalidated, and
+    then fails **silently** — no error, no worker, and every source, even a
+    local GeoJSON one, stays unloaded forever.
+  - `vite.config.ts` sets `worker.format: "es"`, because that worker is a
+    module worker.
+
+The style is always a local object; the basemap is a raster *source* added on
+top of it. A remote style URL would take the whole map down with it when
+unreachable, including the user's own points — which is why it is not one. The
+tile provider is a constant in `mapStyle.ts` for now and belongs in settings.
+
 ## The rest of the foreign store
 
 Media are not the only shape Cairns reads and never writes. Specs §5 lists

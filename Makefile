@@ -1,7 +1,7 @@
 # This is the entry point for every build task: package.json deliberately
 # carries no scripts, so the tools are invoked directly here.
 
-.PHONY: all help install build run dev test check orm e2e e2e-m1 e2e-m2 e2e-m3 e2e-m4 spike9 seed-media seed-clips seed-foreign seed-foreign-clean clean
+.PHONY: all help install build run dev test check orm e2e e2e-m1 e2e-m2 e2e-m3 e2e-m4 e2e-m5 spike9 seed-media seed-clips seed-foreign seed-foreign-clean clean
 
 PNPM = pnpm
 # Vite serves on this port for both dev and preview (see vite.config.ts).
@@ -21,7 +21,7 @@ help:
 	@echo '  - test: Run the unit tests'
 	@echo '  - check: Typecheck the app'
 	@echo '  - e2e: Drive every milestone through headless Chrome, or'
-	@echo '         e2e-m1 … e2e-m4 for one of them. Needs the devstack up'
+	@echo '         e2e-m1 … e2e-m5 for one of them. Needs the devstack up'
 	@echo '         (see docs/Dev.md) and the app served alongside, by'
 	@echo '         `make run` or `make dev`'
 	@echo '  - spike9: Drive the MapLibre spike (needs the devstack too)'
@@ -65,7 +65,7 @@ check: node_modules
 orm: node_modules
 	$(PNPM) exec rdf-orm build --input ./src/shapes/shex --output ./src/shapes/orm
 
-e2e: e2e-m1 e2e-m2 e2e-m3 e2e-m4
+e2e: e2e-m1 e2e-m2 e2e-m3 e2e-m4 e2e-m5
 
 e2e-m1: node_modules
 	node tools/browse.mjs m1
@@ -78,6 +78,9 @@ e2e-m3: node_modules
 
 e2e-m4: node_modules
 	node tools/browse.mjs m4
+
+e2e-m5: node_modules
+	node tools/browse.mjs m5
 
 spike9: node_modules
 	node tools/browse.mjs spike9
