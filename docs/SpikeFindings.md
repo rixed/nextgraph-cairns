@@ -300,6 +300,65 @@ survives a write whose graphs live on a remote broker, or are not yet synced to 
 is untested — the same shape of gap as B-13. No upper bound on the number of graphs in one
 update was found at 200.
 
+## Spike 9 — MapLibre in this app
+
+**Question.** The README fixed the stack: MapLibre GL JS for the map. What was never
+checked is whether it runs *here* — a WASM engine in the same tab, the app inside the auth
+server's iframe, and every scenario driven through headless Chrome, where WebGL is not a
+given. And §8 asks for "Offline — no degradation in P0", which for a map means knowing how
+MapLibre fails when the tiles do not come.
+
+**Answer: it works, it needs one build fix, and offline is a configuration choice.**
+
+- **WebGL is available headless.** `webgl2` via ANGLE/SwiftShader in the same headless
+  Chrome the milestones use, with no extra flags. The map slice can be regression-tested
+  like every other screen. Chrome logs a deprecation warning about the software fallback;
+  it renders regardless.
+- **The worker must be pointed at explicitly, or nothing works and nothing says so.**
+  MapLibre v6 derives its worker URL from `import.meta.url`, expecting to be loaded as
+  `dist/maplibre-gl.mjs` with `maplibre-gl-worker.mjs` beside it. Bundled by Vite, that
+  resolves to `/assets/maplibre-gl-worker.mjs`, which does not exist. The failure is
+  **completely silent**: no error, no worker, `load` never fires, and every source —
+  including a local GeoJSON one with nothing to fetch — stays `isSourceLoaded() === false`
+  forever. The fix is two lines:
+
+  ```ts
+  import { setWorkerUrl } from "maplibre-gl";
+  import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+  setWorkerUrl(workerUrl);
+  ```
+
+  `?worker&url`, not `?url`: the worker imports `maplibre-gl-shared.mjs`, so copying the
+  single file leaves it importing something that was never emitted — the same silent
+  failure one step further along. `vite.config.ts` also needs `worker.format: "es"`,
+  since MapLibre creates a module worker.
+- **With the worker wired up, the real store renders.** 106 media points (clustered by
+  MapLibre's own clustering), 8 places and 4 tracks: style loaded in 369 ms, sources and
+  layers added in 4 ms, features on screen. The GeoJSON comes straight from three SPARQL
+  queries answered in 12 ms.
+- **A remote style URL is a single point of failure.** With the tile host blocked, the map
+  never finishes loading and the app cannot even add its own layers — `addSource` throws
+  "Style is not done loading". Nothing of the user's own data can be shown.
+- **An inline style has no such problem.** The same data on a style object with
+  `sources: {}` and one background layer loads in **37 ms with no network at all**, and
+  renders every point, pin and track identically. Offline is therefore not a fallback path
+  to write: it is the same code with a different style object.
+- **`svelte-maplibre-gl` works on Svelte 5** and mounts the same map declaratively.
+
+**Design decision.** The style is **local and bundled**; a network basemap source is added
+on top of it, not depended upon. §8's "no degradation" then holds by construction: without a
+network the user loses geographic context and keeps every one of their own points. Offline
+basemaps themselves stay the map library's business, not this app's — there is no tile cache
+to build here.
+
+**Cost.** MapLibre takes the bundle from 425 kB to 1 939 kB (90 kB → 380 kB gzipped), plus a
+468 kB worker chunk. That is 4× for one screen, and it argues for loading the map projection
+by dynamic import so the other four tabs never pay for it. Not measured yet.
+
+**Still unknown.** Which tile provider ships in P0; how clustering behaves at 10 000 points
+rather than 106; and whether the WASM engine and MapLibre contend for the main thread during
+a large sync.
+
 ## Environment notes
 
 - Wallets pin the broker's peer key: after `make reset`/re-key of the devstack, old

@@ -9,6 +9,11 @@ export default defineConfig({
     build: {
         target: "esnext",
     },
+    // MapLibre creates its worker as a module worker; bundling it as an ES
+    // module keeps its own imports resolvable (see Spike9Map.svelte).
+    worker: {
+        format: "es",
+    },
     server: {
         port: 4567,
         strictPort: true,

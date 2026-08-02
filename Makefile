@@ -1,7 +1,7 @@
 # This is the entry point for every build task: package.json deliberately
 # carries no scripts, so the tools are invoked directly here.
 
-.PHONY: all help install build run dev test check orm e2e e2e-m1 e2e-m2 e2e-m3 e2e-m4 seed-media seed-clips seed-foreign seed-foreign-clean clean
+.PHONY: all help install build run dev test check orm e2e e2e-m1 e2e-m2 e2e-m3 e2e-m4 spike9 seed-media seed-clips seed-foreign seed-foreign-clean clean
 
 PNPM = pnpm
 # Vite serves on this port for both dev and preview (see vite.config.ts).
@@ -24,6 +24,7 @@ help:
 	@echo '         e2e-m1 … e2e-m4 for one of them. Needs the devstack up'
 	@echo '         (see docs/Dev.md) and the app served alongside, by'
 	@echo '         `make run` or `make dev`'
+	@echo '  - spike9: Drive the MapLibre spike (needs the devstack too)'
 	@echo '  - seed-media: Write COUNT fixture media documents into the'
 	@echo '         store, standing in for the applications that would'
 	@echo '         normally have taken the pictures (default 40)'
@@ -77,6 +78,9 @@ e2e-m3: node_modules
 
 e2e-m4: node_modules
 	node tools/browse.mjs m4
+
+spike9: node_modules
+	node tools/browse.mjs spike9
 
 # Cairns never writes a media document; this fixture plays the app that would.
 COUNT = 40

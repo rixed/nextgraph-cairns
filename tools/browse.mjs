@@ -1250,6 +1250,40 @@ try {
         await click(f, "1b · seed a clip of each kind");
         await waitForLog(f, "seeded a audio document", 300000);
         console.log("[log]\n" + (await readLog(f)));
+    } else if (step === "spike9") {
+        // Does MapLibre run here at all — headless, in the auth server's
+        // iframe, beside the WASM engine — and how does it fail without tiles?
+        const f = await loginAndGetFrame(page);
+        await f.evaluate(() => (location.hash = "#/dev"));
+        await page.waitForTimeout(1000);
+        await f.getByRole("tab", { name: "9 \u00b7 map" }).click();
+        await settle(f);
+
+        await click(f, "1 \u00b7 demo basemap");
+        await waitForLog(f, "demo basemap:", 30000);
+        await click(f, "2 \u00b7 plot the store");
+        await waitForLog(f, "plot #1", 120000);
+        await page.waitForTimeout(1000);
+        await shot(page, "spike9-basemap");
+
+        await click(f, "3 \u00b7 no basemap at all");
+        await waitForLog(f, "plot #2", 120000);
+        await page.waitForTimeout(1000);
+        await shot(page, "spike9-bare");
+
+        // Cut only the tile host: setOffline would take the broker's websocket
+        // with it and the session would go down instead of the basemap.
+        await page.route("**://*.maplibre.org/**", (r) => r.abort());
+        console.log("=== tiles blocked ===");
+        await click(f, "4 \u00b7 with tiles blocked");
+        await waitForLog(f, "plot #3", 60000);
+        await page.waitForTimeout(2000);
+        await shot(page, "spike9-blocked");
+
+        await click(f, "5 \u00b7 the Svelte wrapper");
+        await page.waitForTimeout(4000);
+        await shot(page, "spike9-wrapper");
+        console.log("[log]\n" + (await readLog(f)));
     } else if (step === "seed-foreign" || step === "seed-foreign-clean") {
         // The other half of the store: the shapes Cairns reads and never
         // writes (§5), plus contacts appended to the shared people document.
