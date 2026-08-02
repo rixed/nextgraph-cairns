@@ -306,3 +306,17 @@ empty.
    limit, not a decision.
 4. Whatever the app writes, it must be able to read back through the same subscription — the
    trap spike 7 fell into is invisible until something written by SPARQL fails to appear.
+5. **Coordinates are written twice, on purpose.** §3.2 puts them in a `schema:geo`
+   node, which is one level of nesting below the place — and a nested object written by
+   SPARQL is exactly what the ORM cannot read (finding 2 above). So a place carries both
+   the `schema:geo` node, which is the durable form and what another application reads,
+   and a flat `geo:lat`/`geo:long` pair, which is the only one this app can read back.
+   The flat pair is a **workaround with an expiry date**: when the ORM resolves nested
+   objects it did not itself write, `toPlace` stops reading it and nothing else changes,
+   because both forms have been written all along. Being unable to read one's own nested
+   data is a NextGraph-side problem, not a modelling one, and this is what it costs
+   downstream.
+
+   The reading gap is real in the other direction too: a place published by another
+   application with `schema:geo` alone shows as having no coordinates here (Appendix A,
+   B-14).

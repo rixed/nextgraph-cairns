@@ -14,8 +14,16 @@ app:MemoryShape EXTRA a {
   schema:endDate xsd:dateTime OR xsd:date OR xsd:gYearMonth OR xsd:gYear ? ;
   schema:text xsd:string ? ;
   schema:description xsd:string ? ;
-  schema:location @app:UnnamedPlaceShape * ;
-  schema:attendee @app:BareNamePersonShape OR IRI ? ;
+  # Locations and attendees are held as plain references, never as nested
+  # objects — spike 7. A union-typed property only reports what the ORM itself
+  # wrote, and this app writes through SPARQL to keep date datatypes (spike 2),
+  # so a union would leave the app unable to read back its own writes. An
+  # unnamed location (§3.2) is therefore a subject inside the memory's own
+  # document rather than an anonymous object, and both kinds are resolved by
+  # joining to app:PlaceShape on the IRI.
+  schema:location IRI * ;
+  # 0..N, as §3.3 always said: the old 0..1 was a codegen limit, not a decision.
+  schema:attendee IRI * ;
   dcterms:subject IRI * ;
   # Media the user attached explicitly (§3.4). References to foreign documents:
   # the app writes the link, never the media.
@@ -34,16 +42,6 @@ app:MediaNoteShape EXTRA a {
   schema:text xsd:string ;
 }
 
-# An unnamed location: nested, no URI of its own (Specs §3.2).
-app:UnnamedPlaceShape EXTRA a {
-  a [schema:Place] ;
-  schema:name xsd:string ? ;
-  geo:lat xsd:decimal ;
-  geo:long xsd:decimal ;
-}
-
-# A bare-name attendee: nested, no URI of its own (Specs §3.3).
-app:BareNamePersonShape EXTRA a {
-  a [foaf:Person] ;
-  foaf:name xsd:string ;
-}
+# Places live in placeShape.shex: they are read across the whole store, not
+# through the memory, so they are a shape of their own (§5). People will be the
+# same when S-61 arrives; until something reads them, no shape is declared.

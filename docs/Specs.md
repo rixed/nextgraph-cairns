@@ -891,6 +891,7 @@ than the fact that it was.
 | **B-11** | Joining documents by time and location overlap | The framework as a query capability; each app | Cairn computes its own overlaps for media, bookings, expenses, tracks (§5) | Moderate and repeated per domain | **Open** — the repetition is itself the argument |
 | **B-12** | Discovering which shapes the store contains | The framework's type registry; shape probing by each app | Registry plus probing, reported in S-76 | Low | **Decided** — registry, as specified |
 | **B-13** | Reading a file whose blocks have not yet synced to this device | The framework | None yet — §8's "media unreachable" state is written blind | Unknown; the state exists but is untested | **Open** — spike 6 measured only local files, so whether `file_get` blocks, fails, or streams slowly is unknown |
+| **B-14** | Reading a nested object the app did not itself write through the ORM | The framework | Coordinates written twice — `schema:geo` as §3.2 specifies, plus a flat `geo:lat`/`geo:long` pair the ORM can read | Low to write, but the app cannot read a foreign place that publishes `schema:geo` alone | **Open** — spike 7; the flat pair is removed the day the ORM resolves nested objects written by SPARQL |
 
 Two limits on the whole exercise. Exposing a boundary must never cost the user data — a gap
 can be revealed without being destructive. And it must never mean refusing to function: an app

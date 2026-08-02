@@ -22,8 +22,20 @@ export function stringLiteral(s: string): string {
     return `"${escapeLiteral(s)}"`;
 }
 
+/**
+ * Coordinates, as `xsd:decimal` (§3.2). The datatype matters for the same
+ * reason dates' does: the shape asks for a decimal, and a bare number would be
+ * written as a string and then not match.
+ */
+export function decimalLiteral(n: number): string {
+    if (!Number.isFinite(n)) throw new Error(`not a coordinate: ${n}`);
+    // Exponent notation is not valid xsd:decimal lexical form.
+    return `"${n.toFixed(7).replace(/0+$/, "").replace(/\.$/, ".0")}"^^xsd:decimal`;
+}
+
 export const SPARQL_PREFIXES = `PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 PREFIX schema: <https://schema.org/>
 PREFIX dcterms: <http://purl.org/dc/terms/>
 PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX geo: <http://www.w3.org/2003/01/geo/wgs84_pos#>
 PREFIX app: <did:ng:z:cairns/>`;

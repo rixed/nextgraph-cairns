@@ -1,0 +1,46 @@
+PREFIX app: <did:ng:z:cairns/>
+PREFIX schema: <https://schema.org/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX geo: <http://www.w3.org/2003/01/geo/wgs84_pos#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+
+# Places, wherever they live (Specs §3.2, §5). One shape covers both kinds a
+# memory can point at, because the difference is in the IRI, not in the data:
+#
+#   - an identified place has its own document and its own URI, which may have
+#     been written by this app, by another app, or synced in from elsewhere;
+#   - an unnamed location is a subject inside the memory's own document, so its
+#     IRI is `<memory doc>#place-N`. Not referenceable, not indexed, and never
+#     offered by the picker — that is the trade §3.2 makes for not minting
+#     identity.
+#
+# Everything is optional but the type: a gazetteer entry may have no
+# coordinates, an unnamed location no name, and a half-synced document neither
+# (§8, "partially loaded"). A place with nothing on it renders as its
+# coordinates or as nothing at all, which beats not resolving it.
+#
+# Coordinates are written twice: as §3.2's `schema:geo`, which is what another
+# application reads, and as a flat WGS84 pair on the place itself, which is
+# what this one can read. Spike 7 showed a nested object written by SPARQL is
+# invisible to the ORM, so the `schema:geo` node — a `schema:GeoCoordinates` one
+# level down — cannot be read back through this shape today.
+#
+# The flat pair is therefore TEMPORARY: it is a workaround for a NextGraph
+# limitation, not a modelling choice, and it goes when the ORM can resolve a
+# nested object it did not write itself. `schema:geo` is the durable form and
+# both are always written together, so nothing has to be migrated when it does
+# — the reader just changes which one it looks at.
+app:PlaceShape EXTRA a {
+  a [schema:Place] ;
+  schema:name xsd:string ? ;
+  # Declared so the shape describes what the app writes; unresolvable for now
+  # (it arrives as a bare IRI), which is exactly the limitation above.
+  schema:geo IRI ? ;
+  geo:lat xsd:decimal ? ;
+  geo:long xsd:decimal ? ;
+  schema:address xsd:string ? ;
+  # The containing chain, for the transitive place facet of the S-22 filter.
+  schema:containedInPlace IRI ? ;
+  # Set when a local place was reconciled with an external one (S-33).
+  owl:sameAs IRI ? ;
+}

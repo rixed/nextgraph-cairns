@@ -98,8 +98,7 @@ export const memoryShapeSchema = {
       {
         dataTypes: [
           {
-            valType: "shape",
-            shape: "did:ng:z:cairns/UnnamedPlaceShape",
+            valType: "iri",
           },
         ],
         maxCardinality: -1,
@@ -110,14 +109,10 @@ export const memoryShapeSchema = {
       {
         dataTypes: [
           {
-            valType: "shape",
-            shape: "did:ng:z:cairns/BareNamePersonShape",
-          },
-          {
             valType: "iri",
           },
         ],
-        maxCardinality: 1,
+        maxCardinality: -1,
         minCardinality: 0,
         iri: "https://schema.org/attendee",
         readablePredicate: "attendee",
@@ -206,86 +201,6 @@ export const memoryShapeSchema = {
         minCardinality: 1,
         iri: "https://schema.org/text",
         readablePredicate: "text",
-      },
-    ],
-  },
-  "did:ng:z:cairns/UnnamedPlaceShape": {
-    iri: "did:ng:z:cairns/UnnamedPlaceShape",
-    predicates: [
-      {
-        dataTypes: [
-          {
-            valType: "iri",
-            literals: ["https://schema.org/Place"],
-          },
-        ],
-        maxCardinality: 1,
-        minCardinality: 1,
-        iri: "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
-        readablePredicate: "@type",
-        extra: true,
-      },
-      {
-        dataTypes: [
-          {
-            valType: "string",
-          },
-        ],
-        maxCardinality: 1,
-        minCardinality: 0,
-        iri: "https://schema.org/name",
-        readablePredicate: "name",
-      },
-      {
-        dataTypes: [
-          {
-            valType: "number",
-          },
-        ],
-        maxCardinality: 1,
-        minCardinality: 1,
-        iri: "http://www.w3.org/2003/01/geo/wgs84_pos#lat",
-        readablePredicate: "lat",
-      },
-      {
-        dataTypes: [
-          {
-            valType: "number",
-          },
-        ],
-        maxCardinality: 1,
-        minCardinality: 1,
-        iri: "http://www.w3.org/2003/01/geo/wgs84_pos#long",
-        readablePredicate: "long",
-      },
-    ],
-  },
-  "did:ng:z:cairns/BareNamePersonShape": {
-    iri: "did:ng:z:cairns/BareNamePersonShape",
-    predicates: [
-      {
-        dataTypes: [
-          {
-            valType: "iri",
-            literals: ["http://xmlns.com/foaf/0.1/Person"],
-          },
-        ],
-        maxCardinality: 1,
-        minCardinality: 1,
-        iri: "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
-        readablePredicate: "@type",
-        extra: true,
-      },
-      {
-        dataTypes: [
-          {
-            valType: "string",
-          },
-        ],
-        maxCardinality: 1,
-        minCardinality: 1,
-        iri: "http://xmlns.com/foaf/0.1/name",
-        readablePredicate: "name",
       },
     ],
   },
