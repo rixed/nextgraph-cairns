@@ -10,6 +10,9 @@ export type RouteName =
     | "mediagrid" // S-22c, params: memory = the memory scoping the filter
     | "placepicker" // S-32, params: start/end = the caller's span, for the
     //                 coordinates its photographs already carry
+    | "here" // S-01
+    | "people" // S-60
+    | "person" // S-61, params: key = the person key (see lib/people.ts)
     | "me" // S-70
     | "visible" // S-76
     | "dev"
@@ -47,6 +50,12 @@ function toHash(r: Route): string {
                 : "#/media";
         case "placepicker":
             return "#/place";
+        case "here":
+            return "#/here";
+        case "people":
+            return "#/people";
+        case "person":
+            return `#/person/${encodeURIComponent(r.params!.key)}`;
         case "me":
             return "#/me";
         case "visible":
@@ -82,6 +91,10 @@ function fromHash(h: string): Route {
     // opens as an ordinary screen and its choices go nowhere. Nothing is lost:
     // the caller is a half-written memory that reloading discarded anyway.
     if (parts[0] === "place") return { name: "placepicker" };
+    if (parts[0] === "here") return { name: "here" };
+    if (parts[0] === "people") return { name: "people" };
+    if (parts[0] === "person" && parts[1])
+        return { name: "person", params: { key: decodeURIComponent(parts[1]) } };
     if (parts[0] === "me") return { name: "me" };
     if (parts[0] === "visible") return { name: "visible" };
     if (parts[0] === "dev") return { name: "dev" };

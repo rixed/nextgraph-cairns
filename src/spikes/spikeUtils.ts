@@ -65,5 +65,9 @@ export function fmt(ms: number): string {
     return `${ms.toFixed(0)} ms`;
 }
 
-// Debug hook: lets the headless driver run ad-hoc SELECTs inside the app.
+// Debug hooks: let the headless driver run ad-hoc queries inside the app.
+// `spikeUpdate` exists so a scenario can clean up what it wrote through a
+// surface the app deliberately does not offer — there is no "delete a contact"
+// in P0, and a test run should still leave the store as it found it.
 (window as any).spikeSelect = select;
+(window as any).spikeUpdate = update;

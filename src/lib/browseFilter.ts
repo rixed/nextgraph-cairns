@@ -13,6 +13,7 @@ import {
 } from "./dates";
 import { mediaInSpan, spanOf, takenAtMs, type Media } from "./media";
 import { isWithin, type Place } from "./places";
+import { findPerson, personKey, type Person } from "./people";
 import type { Memory } from "../shapes/orm/memoryShape.typings";
 
 export type Projection = "time" | "space" | "media";
@@ -25,6 +26,12 @@ export interface Facets {
     tagMode: "any" | "all";
     /** A place IRI; matches memories located there or anywhere under it. */
     place?: string;
+    /**
+     * A person *key* rather than an IRI (see `personKey`): a memory matches
+     * when anyone it names resolves to the same person, so a companion is one
+     * facet whether or not their bare names have been promoted yet (§3.3).
+     */
+    person?: string;
     hasMedia: boolean;
 }
 
@@ -32,6 +39,7 @@ export interface Facets {
 export interface MatchContext {
     media: Media[];
     places: Place[];
+    people: Person[];
     isSuppressed: (memoryDoc: string, mediaDoc: string) => boolean;
 }
 
@@ -41,13 +49,14 @@ export const emptyFacets = (): Facets => ({
     hasMedia: false,
 });
 
-export type FacetName = "date" | "tags" | "place" | "hasMedia";
+export type FacetName = "date" | "tags" | "place" | "person" | "hasMedia";
 
 export function activeFacets(f: Facets): FacetName[] {
     const out: FacetName[] = [];
     if (f.from || f.to) out.push("date");
     if (f.tags.length) out.push("tags");
     if (f.place) out.push("place");
+    if (f.person) out.push("person");
     if (f.hasMedia) out.push("hasMedia");
     return out;
 }
@@ -56,6 +65,7 @@ export const FACET_LABELS: Record<FacetName, string> = {
     date: "the date range",
     tags: "the tags",
     place: "the place",
+    person: "who was there",
     hasMedia: "has photographs",
 };
 
@@ -65,6 +75,7 @@ export function without(f: Facets, facet: FacetName): Facets {
     if (facet === "date") relaxed.from = relaxed.to = undefined;
     else if (facet === "tags") relaxed.tags = [];
     else if (facet === "place") relaxed.place = undefined;
+    else if (facet === "person") relaxed.person = undefined;
     else relaxed.hasMedia = false;
     return relaxed;
 }
@@ -117,6 +128,12 @@ export function matches(m: Memory, f: Facets, ctx: MatchContext): boolean {
             isWithin(ctx.places, iri, f.place!)
         );
         if (!here) return false;
+    }
+    if (f.person) {
+        const there = [...(m.attendee ?? [])].some(
+            (iri) => personKey(findPerson(ctx.people, iri), iri) === f.person
+        );
+        if (!there) return false;
     }
     if (f.hasMedia && mediaOf(m, ctx).length === 0) return false;
     return true;

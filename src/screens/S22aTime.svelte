@@ -24,6 +24,7 @@
     import MediaTile from "../components/MediaTile.svelte";
     import { useAllMedia } from "../lib/mediaFeed.svelte";
     import { useAllPlaces } from "../lib/places";
+    import { useAllPeople } from "../lib/people";
     import { coverFor, type Media } from "../lib/media";
     import { isMediaSuppressed } from "../lib/rejections.svelte";
     import { browse, matches, type MatchContext } from "../lib/browse.svelte";
@@ -31,10 +32,12 @@
     const memories = useShape(MemoryShapeType, "did:ng:i");
     const mediaFeed = useAllMedia();
     const places = useAllPlaces();
+    const people = useAllPeople();
     const allMedia = $derived(mediaFeed.all);
     const ctx: MatchContext = $derived({
         media: allMedia,
         places: places.all,
+        people: people.all,
         isSuppressed: isMediaSuppressed,
     });
 

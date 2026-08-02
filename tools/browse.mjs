@@ -978,6 +978,152 @@ try {
             await page.waitForTimeout(3000);
             console.log("[cleanup] spike documents emptied");
         }
+    } else if (step === "m4") {
+        // Milestone 4 end-to-end: name people in memories, see them gathered,
+        // promote a bare name in one update, and filter by who was there.
+        const f = await loginAndGetFrame(page);
+        await waitSynced(f);
+        await page.waitForTimeout(2000);
+        const TITLES = ["M4 people test A", "M4 people test B"];
+        const before = [
+            await titleCount(f, TITLES[0]),
+            await titleCount(f, TITLES[1]),
+        ];
+
+        console.log("=== two memories naming the same person ===");
+        for (const title of TITLES) {
+            await f.getByLabel("Capture a memory").click();
+            await f
+                .getByPlaceholder("Optional")
+                .fill(title, { timeout: 60000 });
+            await f
+                .getByPlaceholder("A name, or someone you know")
+                .fill("Ana Spike");
+            await f.getByRole("button", { name: "add", exact: true }).click();
+            await f.getByRole("button", { name: "Save", exact: true }).click();
+            await page.waitForTimeout(3500);
+            const txt = await f.evaluate(() => document.body.innerText);
+            console.log(
+                txt.includes("Ana Spike")
+                    ? `OK: ${title} names her`
+                    : `FAIL: no attendee on ${title}`
+            );
+            await f.getByRole("button", { name: "← back" }).click();
+            await page.waitForTimeout(1500);
+        }
+
+        console.log("=== the People tab gathers the name ===");
+        await f.evaluate(() => (location.hash = "#/people"));
+        await page.waitForTimeout(3000);
+        let txt = await f.evaluate(() => document.body.innerText);
+        console.log(
+            /Names in your memories[\s\S]*Ana Spike[\s\S]*2 memories/.test(txt)
+                ? "OK: one person, two memories, listed as a bare name"
+                : `FAIL: people screen shows:\n${txt.slice(0, 500)}`
+        );
+
+        console.log("=== promote in one update (§3.3, spike 8) ===");
+        await f.getByRole("button", { name: "someone I know" }).first().click();
+        await page.waitForTimeout(5000);
+        const promoted = await f.evaluate(() =>
+            window.spikeSelect(
+                `PREFIX schema: <https://schema.org/>
+                 PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+                 SELECT ?mem ?contact ?g WHERE {
+                    GRAPH ?mem { ?m schema:name ?n ; schema:attendee ?contact .
+                                 FILTER(STRSTARTS(?n, "M4 people test")) }
+                    GRAPH ?g { ?contact foaf:name "Ana Spike" } }`
+            )
+        );
+        const contacts = new Set(
+            (promoted ?? []).map((r) => r.contact.value)
+        );
+        console.log(
+            promoted?.length === 2 && contacts.size === 1
+                ? "OK: both memories point at one contact record"
+                : `FAIL: promotion left ${JSON.stringify(promoted)}`
+        );
+        const contactIri = [...contacts][0];
+        const stragglers = await f.evaluate(
+            (iri) =>
+                window.spikeSelect(
+                    `PREFIX schema: <https://schema.org/>
+                     PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+                     SELECT ?p WHERE { GRAPH ?mem {
+                        ?m schema:name ?n ; schema:attendee ?p .
+                        ?p a foaf:Person .
+                        FILTER(STRSTARTS(?n, "M4 people test")) } }`
+                ),
+            contactIri
+        );
+        console.log(
+            (stragglers ?? []).length === 0
+                ? "OK: no bare name left behind in any memory"
+                : `FAIL: bare names survive: ${JSON.stringify(stragglers)}`
+        );
+
+        console.log("=== her page, and the person facet ===");
+        await f.evaluate(() => (location.hash = "#/people"));
+        await page.waitForTimeout(2500);
+        await f.getByRole("button", { name: /Ana Spike/ }).first().click();
+        await page.waitForTimeout(2500);
+        txt = await f.evaluate(() => document.body.innerText);
+        console.log(
+            txt.includes("2 memories")
+                ? "OK: S-61 shows every memory with her"
+                : `FAIL: person detail:\n${txt.slice(0, 400)}`
+        );
+        await f.getByRole("button", { name: "In time" }).click();
+        await page.waitForTimeout(2500);
+        txt = await f.evaluate(() => document.body.innerText);
+        const rows = await titleCount(f, TITLES[0]);
+        console.log(
+            rows >= 1 && !txt.includes("Nothing matches")
+                ? "OK: the browse filter is pinned to her"
+                : `FAIL: filtered browse:\n${txt.slice(0, 400)}`
+        );
+
+        console.log("=== here & now renders without a location ===");
+        await f.evaluate(() => (location.hash = "#/here"));
+        await page.waitForTimeout(4000);
+        txt = await f.evaluate(() => document.body.innerText);
+        console.log(
+            txt.includes("Capture a memory") && !txt.includes("undefined")
+                ? "OK: S-01 falls back rather than blanking (§8)"
+                : `FAIL: here & now:\n${txt.slice(0, 400)}`
+        );
+        await shot(page, "m4-people");
+
+        if (!process.env.KEEP) {
+            // The filter is pinned to her; cleanup counts rows, so drop it.
+            await f.evaluate(() => (location.hash = "#/"));
+            await page.waitForTimeout(1500);
+            await f
+                .getByRole("button", { name: /^Filter/ })
+                .click()
+                .catch(() => {});
+            await f
+                .getByRole("button", { name: "Clear the filter" })
+                .click()
+                .catch(() => {});
+            await page.waitForTimeout(1500);
+            for (let i = 0; i < TITLES.length; i++)
+                await cleanUp(page, f, TITLES[i], before[i]);
+            // The contact has no delete in P0 — this run wrote it, so this run
+            // removes it, through the debug hook rather than a fake screen.
+            if (contactIri) {
+                await f.evaluate(
+                    (iri) =>
+                        window.spikeUpdate(
+                            `PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+                             DELETE WHERE { GRAPH ?g { <${iri}> ?p ?o } } ;
+                             DELETE WHERE { GRAPH ?g { ?s foaf:member <${iri}> } }`
+                        ),
+                    contactIri
+                );
+                console.log("[cleanup] contact record removed");
+            }
+        }
     } else if (step === "spike8") {
         // B-06: what a write across many documents costs, what a partial
         // failure leaves behind, and what a reader sees mid-rewrite.

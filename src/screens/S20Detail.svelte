@@ -16,6 +16,13 @@
         formatCoords,
         isIdentified,
     } from "../lib/places";
+    import {
+        useAllPeople,
+        findPerson,
+        personKey,
+        personLabel,
+        isBareName,
+    } from "../lib/people";
     import { router } from "../lib/router.svelte";
     import TagChips from "../components/TagChips.svelte";
     import MediaStrip from "../components/MediaStrip.svelte";
@@ -23,6 +30,10 @@
     const doc = router.current.params!.doc;
     const memories = useShape(MemoryShapeType, "did:ng:i");
     const places = useAllPlaces();
+    const people = useAllPeople();
+    const memoryDocs = $derived(
+        new Set([...memories].map((m) => m["@graph"] as string))
+    );
 
     let ready = $state(false);
     OrmSubscription.getOrCreate(
@@ -49,6 +60,23 @@
             place: findPlace(places.all, iri),
             identified: isIdentified(iri),
         }))
+    );
+
+    /**
+     * Who this memory names (§3.3). Both kinds open S-61 — a contact to see
+     * everywhere they appear, a bare name to the same screen, which is where
+     * promotion is offered rather than demanded (§6.2).
+     */
+    const attendees = $derived(
+        [...(memory?.attendee ?? [])].map((iri) => {
+            const p = findPerson(people.all, iri);
+            return {
+                iri,
+                key: personKey(p, iri),
+                label: personLabel(p, iri),
+                bare: !!p && isBareName(p, memoryDocs),
+            };
+        })
     );
 
     let confirming = $state(false);
@@ -109,6 +137,24 @@
                     </li>
                 {/each}
             </ul>
+        {/if}
+
+        {#if attendees.length}
+            <div class="flex gap-1 flex-wrap items-center">
+                {#each attendees as a (a.iri)}
+                    <button
+                        class="badge badge-ghost gap-1 hover:badge-neutral"
+                        onclick={() =>
+                            router.push({
+                                name: "person",
+                                params: { key: a.key },
+                            })}
+                    >
+                        {a.bare ? "✎" : "👤"}
+                        {a.label}
+                    </button>
+                {/each}
+            </div>
         {/if}
 
         {#if memory.subject?.size}

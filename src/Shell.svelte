@@ -7,6 +7,9 @@
     import S21Editor from "./screens/S21Editor.svelte";
     import S22cMedia from "./screens/S22cMedia.svelte";
     import S32PlacePicker from "./screens/S32PlacePicker.svelte";
+    import S01HereNow from "./screens/S01HereNow.svelte";
+    import S60People from "./screens/S60People.svelte";
+    import S61Person from "./screens/S61Person.svelte";
     import S51Media from "./screens/S51Media.svelte";
     import S70Me from "./screens/S70Me.svelte";
     import S76Visible from "./screens/S76Visible.svelte";
@@ -23,6 +26,9 @@
         editor: S21Editor,
         mediagrid: S22cMedia,
         placepicker: S32PlacePicker,
+        here: S01HereNow,
+        people: S60People,
+        person: S61Person,
         media: S51Media,
         me: S70Me,
         visible: S76Visible,
@@ -37,9 +43,9 @@
 
     // The five tabs of §6. Browse and Me are real; the rest are stubs.
     const tabs: { label: string; icon: string; route?: Route }[] = [
-        { label: "Here & Now", icon: "📍" },
+        { label: "Here & Now", icon: "📍", route: { name: "here" } },
         { label: "Browse", icon: "🗂️", route: { name: "browse" } },
-        { label: "People", icon: "👥" },
+        { label: "People", icon: "👥", route: { name: "people" } },
         { label: "Heard about", icon: "💡" },
         { label: "Me", icon: "🪪", route: { name: "me" } },
     ];
@@ -58,7 +64,9 @@
               router.current.name === "mediagrid" ||
               router.current.name === "media" ||
               router.current.name === "placepicker" ||
-              (t.route.name === "me" && router.current.name === "visible")
+              (t.route.name === "me" && router.current.name === "visible") ||
+              // S-61 is opened from People, and from a memory's attendees.
+              (t.route.name === "people" && router.current.name === "person")
             : router.current.name === "stub" &&
               router.current.params?.label === t.label;
 </script>

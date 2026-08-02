@@ -22,6 +22,7 @@
     } from "../lib/media";
     import { isMediaSuppressed } from "../lib/rejections.svelte";
     import { useAllPlaces } from "../lib/places";
+    import { useAllPeople } from "../lib/people";
     import {
         browse,
         mediaMatching,
@@ -36,6 +37,7 @@
     const memories = useShape(MemoryShapeType, "did:ng:i");
     const feed = useAllMedia();
     const places = useAllPlaces();
+    const people = useAllPeople();
 
     let ready = $state(false);
     mediaReady().then(() => (ready = true));
@@ -52,6 +54,7 @@
     const ctx: MatchContext = $derived({
         media: all,
         places: places.all,
+        people: people.all,
         isSuppressed: isMediaSuppressed,
     });
 

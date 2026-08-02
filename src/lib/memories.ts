@@ -15,6 +15,11 @@ import {
     locationTriples,
     type LocationDraft,
 } from "./places";
+import {
+    attendeeTriples,
+    dropBareNames,
+    type AttendeeDraft,
+} from "./people";
 
 export interface MemoryFields {
     startDate: PrecisionDate;
@@ -31,6 +36,11 @@ export interface MemoryFields {
      * places, and unnamed ones written into this memory's own document.
      */
     locations?: LocationDraft[];
+    /**
+     * Who was there (§3.3): references to contacts, and bare names written
+     * into this memory's own document.
+     */
+    attendees?: AttendeeDraft[];
 }
 
 function fieldTriples(subject: string, f: MemoryFields): string {
@@ -55,6 +65,7 @@ function fieldTriples(subject: string, f: MemoryFields): string {
     for (const m of f.media ?? [])
         t.push(`<${subject}> schema:subjectOf <${m}>`);
     t.push(...locationTriples(subject, f.locations ?? []));
+    t.push(...attendeeTriples(subject, f.attendees ?? []));
     return t.join(" .\n") + " .";
 }
 
@@ -86,6 +97,7 @@ const EDITABLE = [
     "dcterms:subject",
     "schema:subjectOf",
     "schema:location",
+    "schema:attendee",
 ];
 
 /** Replace all editable fields of a memory with the given values. */
@@ -100,7 +112,7 @@ export async function updateMemory(
     );
     // Unlinking an unnamed location would leave its triples behind, still
     // matching the place shape — the same orphan the media notes have (§3.2).
-    ops.push(...dropNestedPlaces(doc));
+    ops.push(...dropNestedPlaces(doc), dropBareNames(doc));
     ops.push(
         `INSERT DATA { GRAPH <${doc}> {\n${fieldTriples(doc, f)}\n} }`
     );

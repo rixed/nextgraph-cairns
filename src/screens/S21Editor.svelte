@@ -24,16 +24,28 @@
         formatCoords,
         type LocationDraft,
     } from "../lib/places";
+    import {
+        useAllPeople,
+        peopleReady,
+        attendeeDraftOf,
+        type AttendeeDraft,
+    } from "../lib/people";
     import { createMemory, updateMemory } from "../lib/memories";
     import { browse } from "../lib/browse.svelte";
     import { router } from "../lib/router.svelte";
     import PrecisionDatePicker from "../components/PrecisionDatePicker.svelte";
     import TagMultiselect from "../components/TagMultiselect.svelte";
     import MediaPicker from "../components/MediaPicker.svelte";
+    import AttendeeMultiselect from "../components/AttendeeMultiselect.svelte";
 
     const editedDoc = router.current.params?.doc;
     const memories = useShape(MemoryShapeType, "did:ng:i");
     const places = useAllPlaces();
+    const people = useAllPeople();
+    /** Which documents are memories — what tells a bare name from a contact. */
+    const memoryDocs = $derived(
+        new Set([...memories].map((m) => m["@graph"] as string))
+    );
 
     let start = $state<PrecisionDate>(today());
     let end = $state<PrecisionDate | undefined>(undefined);
@@ -43,6 +55,7 @@
     let tags = $state<string[]>([]);
     let media = $state<string[]>([]);
     let locations = $state<LocationDraft[]>([]);
+    let attendees = $state<AttendeeDraft[]>([]);
 
     // "Write a memory about these" (§4.4) hands over a derived span, the tag
     // the selection shares and the places it names. Everything is a suggestion:
@@ -55,6 +68,7 @@
             tags = d.tags;
             media = d.media;
             locations = d.locations.map((iri) => ({ kind: "place", iri }));
+            attendees = d.attendees.map((iri) => ({ kind: "contact", iri }));
         }
     }
     let saving = $state(false);
@@ -68,7 +82,10 @@
     // as 0,0 on the next save (§8, "partially loaded").
     let initialized = $state(!editedDoc);
     let placesLoaded = $state(!editedDoc);
-    if (editedDoc) placesReady().then(() => (placesLoaded = true));
+    if (editedDoc)
+        Promise.all([placesReady(), peopleReady()]).then(
+            () => (placesLoaded = true)
+        );
     $effect(() => {
         if (initialized || !editedDoc || !placesLoaded) return;
         const m = [...memories].find((m) => m["@graph"] === editedDoc);
@@ -83,6 +100,9 @@
         media = [...(m.subjectOf ?? [])];
         locations = [...(m.location ?? [])].map((iri) =>
             draftOf(iri, places.all)
+        );
+        attendees = [...(m.attendee ?? [])].map((iri) =>
+            attendeeDraftOf(iri, people.all, memoryDocs)
         );
         initialized = true;
     });
@@ -138,6 +158,7 @@
                 // Plain objects on the way out: the drafts are $state proxies,
                 // and a proxy is not something to hand to a query builder.
                 locations: locations.map((l) => ({ ...l })),
+                attendees: attendees.map((a) => ({ ...a })),
             };
             if (editedDoc) {
                 await updateMemory(editedDoc, fields);
@@ -252,6 +273,12 @@
                 + add a location
             </button>
         </div>
+
+        <AttendeeMultiselect
+            selected={attendees}
+            {memoryDocs}
+            onchange={(next) => (attendees = next)}
+        />
 
         <TagMultiselect selected={tags} ontoggle={toggleTag} />
 

@@ -37,6 +37,8 @@ export interface Draft {
     tags: string[];
     media: string[];
     locations: string[];
+    /** Contacts the selection names — §4.4 asks for these as suggestions. */
+    attendees: string[];
 }
 let draft: Draft | undefined;
 

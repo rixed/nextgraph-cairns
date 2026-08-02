@@ -9,6 +9,7 @@ import {
 } from "./browseFilter";
 import type { Media } from "./media";
 import type { Place } from "./places";
+import type { Person } from "./people";
 import type { Memory } from "../shapes/orm/memoryShape.typings";
 
 const memory = (
@@ -38,9 +39,12 @@ const place = (id: string, containedIn?: string): Place => ({
     containedIn,
 });
 
+const person = (id: string, name?: string): Person => ({ doc: id, id, name });
+
 const ctx = (over: Partial<MatchContext> = {}): MatchContext => ({
     media: [],
     places: [],
+    people: [],
     isSuppressed: () => false,
     ...over,
 });
@@ -153,6 +157,52 @@ describe("the place facet", () => {
                 ctx({ places: cyclic })
             )
         ).toBe(false);
+    });
+});
+
+describe("the person facet", () => {
+    // A companion is one facet whether or not their bare names have been
+    // promoted: two memories naming "Ana" separately are both hers (§3.3).
+    const people = [
+        person("mem1#person-0", "Ana"),
+        person("mem2#person-0", "ana"),
+        person("contacts#p-1", "Ana"),
+        person("mem3#person-0", "Bruno"),
+    ];
+    const all = [
+        memory("mem1", {
+            startDate: "2019",
+            attendee: new Set(["mem1#person-0"]),
+        }),
+        memory("mem2", {
+            startDate: "2019",
+            attendee: new Set(["mem2#person-0"]),
+        }),
+        memory("mem3", {
+            startDate: "2019",
+            attendee: new Set(["mem3#person-0"]),
+        }),
+    ];
+
+    it("matches every memory naming the same person, unpromoted", () => {
+        const shown = all.filter((m) =>
+            matches(m, facets({ person: "name:ana" }), ctx({ people }))
+        );
+        expect(shown.map((m) => m["@graph"])).toEqual(["mem1", "mem2"]);
+    });
+
+    it("does not match someone else", () => {
+        expect(
+            matches(all[2], facets({ person: "name:ana" }), ctx({ people }))
+        ).toBe(false);
+    });
+
+    it("falls back to the IRI when a person has no name yet", () => {
+        // §8, "partially loaded": a record can arrive before its name does.
+        const shown = all.filter((m) =>
+            matches(m, facets({ person: "iri:mem1#person-0" }), ctx())
+        );
+        expect(shown.map((m) => m["@graph"])).toEqual(["mem1"]);
     });
 });
 

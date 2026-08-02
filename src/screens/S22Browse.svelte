@@ -5,10 +5,15 @@
     // routes, which is what lets the filter and the selection outlive a switch.
     //
     // Facets built: date range (precision-aware), tags (any/all), place
-    // (transitively through schema:containedInPlace), has media. §6.2 also
-    // lists people, public event and depth; nothing in the app writes or reads
-    // those yet, and a facet that cannot narrow anything is worse than a facet
-    // that is not there.
+    // (transitively through schema:containedInPlace), who was there, has
+    // media. §6.2 also lists public event and depth; nothing in the app writes
+    // or reads those yet, and a facet that cannot narrow anything is worse
+    // than a facet that is not there.
+    //
+    // The person facet matches on the *person*, not the reference: two
+    // memories that each typed "Ana" are both hers before anything has been
+    // promoted (§3.3), which is what makes promotion an act of tidying rather
+    // than a prerequisite for finding anyone.
     //
     // Deferred: "reattach media" from §4.4, which needs a memory picker, and
     // the grouping suggestions of S-22a.
@@ -18,6 +23,7 @@
     import type { Memory } from "../shapes/orm/memoryShape.typings";
     import { useAllMedia } from "../lib/mediaFeed.svelte";
     import { useAllPlaces, isIdentified } from "../lib/places";
+    import { useAllPeople, isBareName, groupPeople } from "../lib/people";
     import { isMediaSuppressed } from "../lib/rejections.svelte";
     import {
         browse,
@@ -51,6 +57,7 @@
     const memories = useShape(MemoryShapeType, "did:ng:i");
     const feed = useAllMedia();
     const places = useAllPlaces();
+    const people = useAllPeople();
 
     let ready = $state(false);
     OrmSubscription.getOrCreate(
@@ -61,9 +68,11 @@
     const ctx: MatchContext = $derived({
         media: feed.all,
         places: places.all,
+        people: people.all,
         isSuppressed: isMediaSuppressed,
     });
     const all = $derived([...memories] as unknown as Memory[]);
+    const memoryDocs = $derived(new Set(all.map((m) => m["@graph"])));
     const filtered = $derived(all.filter((m) => matches(m, browse.facets, ctx)));
 
     const facets = $derived(browse.facets);
@@ -73,6 +82,18 @@
         places.all
             .filter((p) => isIdentified(p.id) && p.name)
             .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""))
+    );
+
+    /** Everyone the archive names, for the person facet (§3.3). */
+    const knownPeople = $derived(
+        groupPeople(
+            people.all,
+            all.map((m) => ({
+                doc: m["@graph"],
+                attendees: [...(m.attendee ?? [])],
+            })),
+            memoryDocs
+        ).filter((g) => g.memories.length)
     );
 
     let showFilter = $state(false);
@@ -180,6 +201,18 @@
                     )
                 ),
             ],
+            // Contacts carry over; a bare name belongs to the memory that
+            // typed it, and copying the string would invent a second one.
+            attendees: [
+                ...new Set(
+                    selectedMemories.flatMap((m) =>
+                        [...(m.attendee ?? [])].filter((iri) => {
+                            const p = people.all.find((x) => x.id === iri);
+                            return p && !isBareName(p, memoryDocs);
+                        })
+                    )
+                ),
+            ],
         });
         browse.stopSelecting();
         router.push({ name: "editor" });
@@ -200,6 +233,7 @@
             tags: [],
             media: [...selected],
             locations: [],
+            attendees: [],
         });
         browse.stopSelecting();
         router.push({ name: "editor" });
@@ -326,6 +360,27 @@
                         <option value="">anywhere</option>
                         {#each knownPlaces as p (p.id)}
                             <option value={p.id}>{p.name}</option>
+                        {/each}
+                    </select>
+                </label>
+            {/if}
+
+            {#if knownPeople.length}
+                <label class="form-control">
+                    <div class="label py-0">
+                        <span class="label-text text-xs">Who</span>
+                    </div>
+                    <select
+                        class="select select-bordered select-sm"
+                        value={facets.person ?? ""}
+                        onchange={(e) =>
+                            (facets.person = e.currentTarget.value || undefined)}
+                    >
+                        <option value="">anyone</option>
+                        {#each knownPeople as g (g.key)}
+                            <option value={g.key}>
+                                {g.name} ({g.memories.length})
+                            </option>
                         {/each}
                     </select>
                 </label>

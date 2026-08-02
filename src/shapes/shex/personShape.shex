@@ -1,0 +1,37 @@
+PREFIX app: <did:ng:z:cairns/>
+PREFIX schema: <https://schema.org/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+
+# People, wherever they live (Specs §3.3, §5). One shape covers both kinds a
+# memory can point at, for the same reason places need only one (spike 7):
+#
+#   - a **contact** has a record in the shared people document — a user-owned
+#     document no application owns, appended to and never restructured, which
+#     is B-02's answer applied a second time (B-03);
+#   - a **bare name** is a subject inside the memory's own document, with a
+#     name and nothing else. Promoting it mints a contact and rewrites every
+#     memory that used the same string, in one update (spike 8).
+#
+# The two are told apart by which document holds them, not by the shape: a
+# person whose graph is one of the app's memories is a bare name. That test is
+# in lib/people.ts, where the memory documents are known.
+#
+# Everything but the type is optional — a record half-synced is still a person
+# worth showing (§8, "partially loaded").
+app:PersonShape EXTRA a {
+  a [foaf:Person] ;
+  foaf:name xsd:string ? ;
+  # A portrait, if some other application published one. Read, never written:
+  # this app has no camera and no upload (§3.4).
+  schema:image IRI ? ;
+}
+
+# The shared people document itself: a container the app finds or creates, the
+# way tags.ts finds or creates the concept scheme (§5). foaf:Group rather than
+# an app-specific type, because no application owns this document.
+app:PeopleDocShape EXTRA a {
+  a [foaf:Group] ;
+  schema:name xsd:string ? ;
+  foaf:member IRI * ;
+}
