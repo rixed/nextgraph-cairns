@@ -23,6 +23,7 @@
         imminent,
     } from "../lib/reservations.svelte";
     import ReservationCard from "../components/ReservationCard.svelte";
+    import { useHere, km, formatKm } from "../lib/here.svelte";
 
     const memories = useShape(MemoryShapeType, "did:ng:i");
     const places = useAllPlaces();
@@ -33,31 +34,10 @@
         normalizeScope("did:ng:i")
     ).readyPromise.then(() => (ready = true));
 
-    let here = $state<{ lat: number; lon: number } | undefined>();
-    let locating = $state(true);
-    let locationRefused = $state(false);
-
-    $effect(() => {
-        if (!navigator.geolocation) {
-            locating = false;
-            locationRefused = true;
-            return;
-        }
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                here = {
-                    lat: pos.coords.latitude,
-                    lon: pos.coords.longitude,
-                };
-                locating = false;
-            },
-            () => {
-                locating = false;
-                locationRefused = true;
-            },
-            { timeout: 10_000 }
-        );
-    });
+    // Asked once per session and shared with S-40, which needs the same answer
+    // to rank what you were told about by how far away it is.
+    const where = useHere();
+    const here = $derived(where.position);
 
     const all = $derived([...memories] as unknown as Memory[]);
 
@@ -69,22 +49,6 @@
      */
     const reservations = useReservations();
     const soon = $derived(imminent(reservations.all));
-
-    /** Kilometres between two points, near enough for "was I here before?". */
-    function km(
-        a: { lat: number; lon: number },
-        b: { lat: number; lon: number }
-    ): number {
-        const R = 6371;
-        const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-        const dLon = ((b.lon - a.lon) * Math.PI) / 180;
-        const la = (a.lat * Math.PI) / 180;
-        const lb = (b.lat * Math.PI) / 180;
-        const h =
-            Math.sin(dLat / 2) ** 2 +
-            Math.cos(la) * Math.cos(lb) * Math.sin(dLon / 2) ** 2;
-        return 2 * R * Math.asin(Math.sqrt(h));
-    }
 
     interface Near {
         m: Memory;
@@ -164,7 +128,7 @@
         </div>
     {/if}
 
-    {#if locating}
+    {#if where.locating}
         <p class="text-sm opacity-60">finding out where you are…</p>
     {:else if nearby.length}
         <div>
@@ -184,9 +148,7 @@
                                 </span>
                                 <span class="text-xs opacity-60">
                                     {n.label} ·
-                                    {n.distance < 1
-                                        ? `${Math.round(n.distance * 1000)} m`
-                                        : `${n.distance.toFixed(1)} km`} away
+                                    {formatKm(n.distance)} away
                                 </span>
                             </span>
                         </button>
@@ -218,7 +180,7 @@
         </div>
     {/if}
 
-    {#if ready && !nearby.length && !onThisDay.length && !soon.length && !locating}
+    {#if ready && !nearby.length && !onThisDay.length && !soon.length && !where.locating}
         <!-- Nothing here, nothing now: never blank (§8). -->
         <div class="text-center py-10 flex flex-col items-center gap-3">
             <p class="opacity-70">
@@ -241,7 +203,7 @@
         </button>
     {/if}
 
-    {#if locationRefused}
+    {#if where.refused}
         <p class="text-xs opacity-60">
             Without your location this shows what happened on this day in other
             years. Everything else works as it does anywhere.
