@@ -11,6 +11,7 @@
 // a screen has one import rather than two.
 
 import type { PrecisionDate } from "./dates";
+import type { LocationDraft } from "./places";
 import {
     activeFacets,
     emptyFacets,
@@ -32,11 +33,14 @@ const scrollOf: Record<Projection, number> = { time: 0, space: 0, media: 0 };
  * once, then dropped: it is a hand-off, not a document.
  */
 export interface Draft {
-    startDate: PrecisionDate;
+    /** Absent when the capture is about a place rather than a moment: a pin
+     *  dropped on the map says where, and the editor's default says when. */
+    startDate?: PrecisionDate;
     endDate?: PrecisionDate;
     tags: string[];
     media: string[];
-    locations: string[];
+    /** Drafts, not IRIs: a dropped pin is a location with no identity yet. */
+    locations: LocationDraft[];
     /** Contacts the selection names — §4.4 asks for these as suggestions. */
     attendees: string[];
 }

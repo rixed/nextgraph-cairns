@@ -199,9 +199,9 @@
                 ...new Set(
                     selectedMemories.flatMap((m) =>
                         [...(m.location ?? [])].filter(isIdentified)
-                    )
+                    ),
                 ),
-            ],
+            ].map((iri) => ({ kind: "place" as const, iri })),
             // Contacts carry over; a bare name belongs to the memory that
             // typed it, and copying the string would invent a second one.
             attendees: [

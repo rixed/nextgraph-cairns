@@ -1315,6 +1315,25 @@ try {
                 : `FAIL: map up ${back.up}, ${again} photographs (was ${before})`
         );
 
+        // §6.2: long-press captures at a dropped pin. Right-click is the same
+        // gesture with a mouse, and the only one a headless run can make.
+        await f
+            .locator("canvas.maplibregl-canvas")
+            .click({ button: "right", position: { x: 300, y: 200 } });
+        await page.waitForTimeout(3000);
+        const editor = await f.evaluate(() => document.body.innerText);
+        console.log(
+            /New memory/.test(editor) &&
+                /-?\d+\.\d+, -?\d+\.\d+/.test(editor) &&
+                /kept in this memory only/.test(editor)
+                ? "OK: a dropped pin opens the editor on an unnamed location"
+                : `FAIL: no pinned capture:\n${editor.slice(0, 300)}`
+        );
+        // Away without saving: nothing was created, so there is nothing to
+        // clean up beyond leaving the screen.
+        await f.evaluate(() => (location.hash = "#/space"));
+        await page.waitForTimeout(4000);
+
         // Dropping the only facet already emptied the filter, which disables
         // the clear button; clicking it then would hang rather than tidy.
         const clear = f.getByRole("button", { name: "Clear the filter" });

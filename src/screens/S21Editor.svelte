@@ -63,11 +63,11 @@
     if (!editedDoc) {
         const d = browse.takeDraft();
         if (d) {
-            start = d.startDate;
+            if (d.startDate) start = d.startDate;
             end = d.endDate;
             tags = d.tags;
             media = d.media;
-            locations = d.locations.map((iri) => ({ kind: "place", iri }));
+            locations = d.locations;
             attendees = d.attendees.map((iri) => ({ kind: "contact", iri }));
         }
     }

@@ -10,8 +10,6 @@
     //
     // Deferred, deliberately, until the structure is complete:
     //   - the time scrubber bound to the filter's date range (§6.2);
-    //   - long-press to capture at a dropped pin (§6.2), which wants S-32's
-    //     pin flow reaching back into this screen;
     //   - a representative thumbnail on a cluster rather than a count (§3.4);
     //   - derived locations rendered distinctly — nothing derives one yet.
     //
@@ -238,6 +236,37 @@
                 .addTo(m);
         });
         m.on("mouseleave", "memories", () => popup.remove());
+
+        // §6.2: long-press captures at a dropped pin. Right-click is the same
+        // gesture where there is a mouse; both hand the editor an unnamed
+        // location (§3.2) rather than minting a place nobody named.
+        m.on("contextmenu", (e: any) => captureAt(e.lngLat));
+        let held: ReturnType<typeof setTimeout> | undefined;
+        const cancel = () => {
+            clearTimeout(held);
+            held = undefined;
+        };
+        m.on("touchstart", (e: any) => {
+            // One finger only: two is a pinch, and a map that captured a
+            // memory every time it was zoomed would be unusable.
+            if (e.points?.length !== 1) return cancel();
+            held = setTimeout(() => captureAt(e.lngLat), 550);
+        });
+        for (const ev of ["touchend", "touchcancel", "movestart", "touchmove"])
+            m.on(ev as any, cancel);
+    }
+
+    /** Open the editor on a memory that has a place but not yet a date. */
+    function captureAt(lngLat: { lat: number; lng: number }) {
+        browse.setDraft({
+            tags: [],
+            media: [],
+            locations: [
+                { kind: "unnamed", lat: lngLat.lat, lon: lngLat.lng },
+            ],
+            attendees: [],
+        });
+        router.push({ name: "editor" });
     }
 
     /** Frame whatever there is to see, rather than a hard-coded somewhere. */
@@ -336,6 +365,9 @@
                 {tracks.all.length} tracks
             </span>
         {/if}
+        <span class="ml-auto hidden sm:inline">
+            long-press the map to capture where you point
+        </span>
     </div>
 
     {#if ready && missing}
