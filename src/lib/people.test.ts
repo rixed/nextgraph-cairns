@@ -99,6 +99,19 @@ describe("groupPeople", () => {
         expect(chloe.memories).toEqual([]);
     });
 
+    // Marked `fails` on purpose: this is what §3.3 requires and what the app
+    // does not do — see the note on personKey. It passes while the behaviour is
+    // wrong, and starts failing the day someone fixes it, which is the prompt
+    // to delete the `.fails` rather than to discover the case again.
+    it.fails("keeps two contact records that share a name apart", () => {
+        const twoAnas = [
+            person(PEOPLE_DOC, `${PEOPLE_DOC}#p-1`, "Ana Reis"),
+            person(PEOPLE_DOC, `${PEOPLE_DOC}#p-2`, "Ana Reis"),
+        ];
+        const groups = groupPeople(twoAnas, [], memoryDocs);
+        expect(groups).toHaveLength(2);
+    });
+
     it("merges a bare name with the contact of the same name", () => {
         const withContact = [
             ...all,

@@ -66,6 +66,26 @@ export function peopleReady(): Promise<unknown> {
  *
  * Two real people who share a name are handled afterwards, by reassigning
  * individual memories (§3.3); nothing here pretends otherwise.
+ *
+ * KNOWN TO BE WRONG, deliberately, for now. Because the key is the name, two
+ * distinct *contact records* that share one collapse into a single person —
+ * which is backwards, since a contact record is precisely the thing that keeps
+ * two people with one name apart. `make seed-foreign` puts two "Ana Reis"
+ * records in the store, and S-60 shows one row.
+ *
+ * The rule it should be is narrower: bare names sharing a string merge with
+ * each other; a bare name merges into a contact of that name only when exactly
+ * one contact has it; two contacts never merge. That cannot be a function of
+ * (person, iri) — deciding it needs the whole set of contacts, and the
+ * ambiguous case needs somewhere to ask, a conflict-resolution widget that
+ * would have to appear wherever a name is resolved (S-21's typeahead, S-60,
+ * promotion on S-61). Both are more than this key can carry, and the resulting
+ * group identity would have to be threaded through S-61's route parameter and
+ * the S-22 person facet as well.
+ *
+ * So it merges wrongly and visibly rather than being half-fixed here: the
+ * failure is a collapsed row, not a corrupted memory, and nothing written to
+ * the store depends on it — promotion rewrites by occurrence, not by key.
  */
 export function personKey(p: Person | undefined, iri: string): string {
     const name = p?.name?.trim().toLowerCase();
