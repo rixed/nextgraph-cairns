@@ -45,8 +45,26 @@
     const groups = $derived(
         groupPeople(people.all, attendeeLists, memoryDocs)
     );
-    const contacts = $derived(groups.filter((g) => g.contact));
-    const bare = $derived(groups.filter((g) => !g.contact));
+    /**
+     * A search box, once the list stops being scannable. A real address book
+     * is not three people — `make seed-foreign` writes sixty — and the ordering
+     * §6.2 asks for puts the people you travel with on top, which is exactly
+     * why everyone else ends up out of reach.
+     *
+     * Diacritics are folded, so "sorensen" finds Ingrid Sørensen: a name typed
+     * from memory rarely carries them.
+     */
+    let query = $state("");
+    const fold = (s: string) =>
+        s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const needle = $derived(fold(query.trim()));
+    const searchable = $derived(groups.length > 12);
+    const shown = $derived(
+        needle ? groups.filter((g) => fold(g.name).includes(needle)) : groups
+    );
+
+    const contacts = $derived(shown.filter((g) => g.contact));
+    const bare = $derived(shown.filter((g) => !g.contact));
 
     const open = (g: PersonGroup) =>
         router.push({ name: "person", params: { key: g.key } });
@@ -98,6 +116,33 @@
 
     {#if error}
         <div class="alert alert-error text-sm">{error}</div>
+    {/if}
+
+    {#if ready && searchable}
+        <label class="input input-bordered input-sm flex items-center gap-2">
+            <span class="opacity-50">🔍</span>
+            <input
+                class="grow"
+                type="search"
+                placeholder="Find someone"
+                bind:value={query}
+            />
+            {#if needle}
+                <span class="text-xs opacity-60">
+                    {shown.length} of {groups.length}
+                </span>
+            {/if}
+        </label>
+    {/if}
+
+    {#if ready && needle && !shown.length}
+        <!-- §8: an empty result says what emptied it and undoes itself. -->
+        <div class="alert text-sm">
+            <span>Nobody here matches “{query.trim()}”.</span>
+            <button class="btn btn-sm" onclick={() => (query = "")}>
+                Show everyone
+            </button>
+        </div>
     {/if}
 
     {#if contacts.length}
