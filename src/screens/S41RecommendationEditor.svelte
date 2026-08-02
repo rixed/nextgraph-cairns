@@ -172,7 +172,7 @@
         <div class="alert alert-warning text-sm">{error}</div>
     {/if}
 
-    <label class="form-control">
+    <div class="form-control">
         <span class="label-text text-sm opacity-70">What about</span>
         {#if item}
             <div class="flex items-center gap-2 mt-1">
@@ -211,9 +211,9 @@
                 {/if}
             </div>
         {/if}
-    </label>
+    </div>
 
-    <label class="form-control">
+    <div class="form-control">
         <span class="label-text text-sm opacity-70">Who told you</span>
         <div class="flex flex-wrap gap-2 items-center mt-1">
             {#if contacts.length}
@@ -241,7 +241,7 @@
                 />
             {/if}
         </div>
-    </label>
+    </div>
 
     <div class="form-control">
         <span class="label-text text-sm opacity-70">When you were told</span>

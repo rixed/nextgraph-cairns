@@ -60,7 +60,16 @@ export function useRecommendations() {
     const recs = useShape(RecommendationShapeType, "did:ng:i");
     return {
         get all(): Recommendation[] {
-            return ([...recs] as unknown as RecShape[]).map(toRecommendation);
+            return (
+                ([...recs] as unknown as RecShape[])
+                    .map(toRecommendation)
+                    // A subject appears as soon as it matches the shape, and the
+                    // rest of its triples follow (§8, "partially loaded"). One
+                    // without a referent yet is not something to show — it is
+                    // not a recommendation about anything until the IRI lands,
+                    // and every screen would otherwise have to guard the join.
+                    .filter((r) => !!r.item)
+            );
         },
     };
 }

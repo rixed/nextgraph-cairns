@@ -94,3 +94,30 @@ shared with other people's testing, so the marker is what makes
 one update across every document (spike 8), so the store cannot end up half
 cleaned. The marker is the one inauthentic thing in these documents and nothing
 in the app reads it.
+
+## What you were told about
+
+Recommendations (§4) are the only thing the app owns that does not get a
+document each: they are subjects inside one `schema:ItemList` document,
+addressed by fragment. The list is found by the recommendations it already
+holds rather than by its type — another application's shopping list is a
+`schema:ItemList` too — which is why the first item and the list are written in
+the same statement, and why an empty list never exists. When S-00 and
+Preferences arrive, the list's identity belongs there instead.
+
+They are the one screen that needs a position to be interesting, so `make
+e2e-m6` overrides geolocation to Lisbon before it starts. That is also the only
+coverage S-01's proximity path has ever had: the other milestones run with
+location refused, which exercises §8's fallback and nothing else.
+
+Referents come from `make seed-foreign` — its five public events include one
+running in a couple of days and one from four months ago, which is what makes
+"happening soonest" and "expired" visible rather than notional.
+
+### The app cannot know where it is
+
+`getCurrentPosition` fails inside the auth server's iframe — *"disabled in this document by
+permissions policy"* — because the embedding page does not set `allow="geolocation"` on the
+`<iframe>`. Nothing in Cairns can change that (Appendix A, B-15). Everything that needs a
+position is conditional, so the screens read as they do indoors; `make e2e-m6` probes for a
+position and prints `SKIP` rather than `OK` for the assertions that need one.

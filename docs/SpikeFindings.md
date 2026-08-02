@@ -399,6 +399,38 @@ justifies §3.7 giving recommendations one list rather than a document each.
 what concurrent edits from two devices to two different items in the same document do — the
 CRDT should merge them, and nothing here tested it.
 
+## Found while driving milestone 6 — the app cannot know where it is
+
+Not a spike; a measurement that fell out of giving S-40 a position to sort by.
+
+```
+[geolocation] denied (code 1):
+    Geolocation has been disabled in this document by permissions policy.
+```
+
+This is **not** the user refusing. Cairns runs inside an iframe served by the auth server,
+and an iframe receives geolocation only if the embedding page grants it — `allow="geolocation"`
+on the `<iframe>`. It does not, so `getCurrentPosition` fails before any permission prompt
+could happen, and no amount of granting at the browser level changes it (the driver grants it
+to both origins and sets a position; the call still fails).
+
+What that silently disables, all of it specified and all of it built:
+
+- §6.2 S-01 card 1 — the recommendation happening now, nearby. The app's best moment (§4.2).
+- §6.2 S-01 card 3 — a recommended place nearby.
+- S-01's "You have been here before", which has therefore never once run.
+- S-40's distance ordering and its "800 m away" lines.
+- S-32's "use my location" button in the place picker.
+
+The app already degrades honestly — §8's rule made every one of these conditional, so the
+screens read as they do indoors rather than breaking — which is why this went unnoticed for
+four milestones. The e2e run now probes for a position and prints `SKIP` rather than `OK` for
+the assertions that need one, because a green line for a code path that cannot execute is
+worse than a missing one.
+
+The fix is one attribute in the embedding page, and it belongs to whoever owns that page
+(Appendix A, B-15).
+
 ## Environment notes
 
 - Wallets pin the broker's peer key: after `make reset`/re-key of the devstack, old

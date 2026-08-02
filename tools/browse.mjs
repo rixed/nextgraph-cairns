@@ -1371,6 +1371,240 @@ try {
             await page.waitForTimeout(2000);
         }
         console.log("[cleanup] filter empty");
+    } else if (step === "m6") {
+        // Milestone 6 — what you were told about (§4, S-40/S-41), and the loop
+        // it closes: hearing about a place, going there, and the app noticing.
+        //
+        // Needs `make seed-foreign`: the referents are the fixture's events and
+        // places, because a recommendation with nothing to point at tests
+        // nothing.
+        const f = await loginAndGetFrame(page);
+        await settle(f);
+
+        // Lisbon, so "nearby" has an answer. The app runs in an iframe served
+        // by the auth server, so both origins need the grant.
+        for (const origin of [
+            "http://localhost:14400",
+            "http://localhost:4567",
+        ])
+            await ctx.grantPermissions(["geolocation"], { origin });
+        await ctx.setGeolocation({ latitude: 38.7139, longitude: -9.1394 });
+
+        // Whether that reaches the app at all is a question about the
+        // deployment, not about Cairns: the app runs inside the auth server's
+        // iframe, and an iframe gets geolocation only if its host says so.
+        const geo = await f.evaluate(
+            () =>
+                new Promise((res) => {
+                    if (!navigator.geolocation) return res("no API");
+                    navigator.geolocation.getCurrentPosition(
+                        (p) =>
+                            res(
+                                `ok ${p.coords.latitude.toFixed(3)},${p.coords.longitude.toFixed(3)}`
+                            ),
+                        (e) => res(`denied (code ${e.code}): ${e.message}`),
+                        { timeout: 8000 }
+                    );
+                })
+        );
+        const positioned = geo.startsWith("ok");
+        console.log(`[geolocation] ${geo}`);
+
+        // How many recommendations the STORE holds. Counting rendered rows was
+        // a mistake worth not repeating: a screen that threw renders nothing,
+        // and a cleanup that reads the DOM then reports success while leaving
+        // everything behind — which is exactly what happened, on a devstack
+        // other people test against.
+        const countRecs = () =>
+            f.evaluate(() =>
+                window
+                    .spikeSelect(
+                        "SELECT ?s WHERE { GRAPH ?g { ?s a <did:ng:z:cairns/Recommendation> } }"
+                    )
+                    .then((r) => r.length)
+            );
+
+        /** Remove every recommendation, whoever wrote it. */
+        const wipeRecs = async () => {
+            await f.evaluate(() =>
+                window.spikeUpdate(
+                    `PREFIX schema: <https://schema.org/>
+                     DELETE { GRAPH ?g { ?l schema:itemListElement ?s . ?s ?p ?o } }
+                     WHERE { GRAPH ?g {
+                        ?s a <did:ng:z:cairns/Recommendation> ; ?p ?o .
+                        OPTIONAL { ?l schema:itemListElement ?s }
+                     } }`,
+                    undefined
+                )
+            );
+        };
+
+        // Start from nothing, so the first-run state below means what it says
+        // and a failed earlier run cannot make this one lie.
+        const before = await countRecs();
+        if (before) {
+            await wipeRecs();
+            await page.waitForTimeout(3000);
+            console.log(`[pre-clean] removed ${before} left over from before`);
+        }
+
+        await f.evaluate(() => (location.hash = "#/heard"));
+        await page.waitForTimeout(4000);
+        const empty = await f.evaluate(() => document.body.innerText);
+        console.log(
+            /Nothing yet/.test(empty)
+                ? "OK: the first-run empty state explains the screen (§8)"
+                : `FAIL: no first-run state:\n${empty.slice(0, 300)}`
+        );
+
+        // ---- one recommendation about an event, attributed to a contact ----
+        await click(f, "Add something");
+        await page.waitForTimeout(2000);
+        await f
+            .locator('select[aria-label="An event"]')
+            .selectOption({ label: "Festival ao Largo" });
+        await page.waitForTimeout(500);
+        // Whoever the fixture's first contact is — the point is the link, not
+        // the name, and the names are the fixture's business.
+        const teller = await f.evaluate(() => {
+            const sel = document.querySelector(
+                'select[aria-label="Who told you"]'
+            );
+            sel.selectedIndex = 1;
+            sel.dispatchEvent(new Event("change", { bubbles: true }));
+            return sel.options[1].textContent.trim();
+        });
+        await page.waitForTimeout(500);
+        await click(f, "Save");
+        await page.waitForTimeout(4000);
+
+        const listed = await f.evaluate(() => document.body.innerText);
+        console.log(
+            /Festival ao Largo/.test(listed) &&
+                new RegExp(teller).test(listed) &&
+                /(happening now|coming up)/.test(listed)
+                ? `OK: S-41 wrote it and S-40 shows it, dated and attributed (${teller})`
+                : `FAIL: not on the list:\n${listed.slice(0, 400)}`
+        );
+
+        // ---- the best moment: happening soon, and near ----
+        if (positioned) {
+            await f.evaluate(() => (location.hash = "#/here"));
+            await page.waitForTimeout(6000);
+            const hereNow = await f.evaluate(() => document.body.innerText);
+            console.log(
+                /Happening near you/.test(hereNow) &&
+                    /Festival ao Largo/.test(hereNow)
+                    ? "OK: S-01's first card is the event you were told about"
+                    : `FAIL: no best-moment card:\n${hereNow.slice(0, 400)}`
+            );
+        } else {
+            // Not a pass. §6.2's first card cannot be exercised where the app
+            // is never told where it is, and saying OK would be a lie.
+            console.log("SKIP: S-01's proximity cards — no position here");
+        }
+
+        // ---- one about a place, and going there ----
+        await f.evaluate(() => (location.hash = "#/heard/new"));
+        await page.waitForTimeout(3000);
+        await click(f, "Pick a place");
+        await page.waitForTimeout(2000);
+        await f.locator('input[placeholder="Search the places you know"]').fill("Alfama");
+        await page.waitForTimeout(1500);
+        await f.evaluate(() => {
+            const b = [...document.querySelectorAll("li button")].find(
+                (x) => x.querySelector(".font-medium")?.textContent.trim() === "Alfama"
+            );
+            b.click();
+        });
+        await page.waitForTimeout(2000);
+        await f.locator('input[aria-label="Source"]').fill("the m6 driver");
+        await f
+            .locator("textarea")
+            .fill("m6: go on a weekday, ask for the back room");
+        await click(f, "Save");
+        await page.waitForTimeout(4000);
+
+        // Now capture a memory there. The recommendation must come back
+        // fulfilled, and the memory must say so (§6.2, S-21).
+        await f.evaluate(() => (location.hash = "#/new"));
+        await page.waitForTimeout(3000);
+        await f.locator('input[placeholder="Optional"]').fill("M6 heard test");
+        await click(f, "+ add a location");
+        await page.waitForTimeout(2000);
+        await f.locator('input[placeholder="Search the places you know"]').fill("Alfama");
+        await page.waitForTimeout(1500);
+        await f.evaluate(() => {
+            const b = [...document.querySelectorAll("li button")].find(
+                (x) => x.querySelector(".font-medium")?.textContent.trim() === "Alfama"
+            );
+            b.click();
+        });
+        await page.waitForTimeout(2000);
+        await click(f, "Save");
+        await page.waitForTimeout(6000);
+
+        const detail = await f.evaluate(() => document.body.innerText);
+        console.log(
+            /You had been told about this/.test(detail) &&
+                /the m6 driver/.test(detail)
+                ? "OK: capturing there marked it fulfilled, and the memory says so"
+                : `FAIL: no fulfilment on the memory:\n${detail.slice(0, 500)}`
+        );
+
+        await f.evaluate(() => (location.hash = "#/heard"));
+        await page.waitForTimeout(4000);
+        const after = await f.evaluate(() => document.body.innerText);
+        console.log(
+            /you went/.test(after)
+                ? "OK: S-40 marks it as visited without hiding it"
+                : `FAIL: not marked visited:\n${after.slice(0, 400)}`
+        );
+
+        // A place you have been to is no longer a prompt to go (§6.2 card 3).
+        if (positioned) {
+            await f.evaluate(() => (location.hash = "#/here"));
+            await page.waitForTimeout(6000);
+            const nagging = await f.evaluate(() => document.body.innerText);
+            console.log(
+                !/told about these, and they are near[\s\S]*Alfama/.test(nagging)
+                    ? "OK: S-01 stops offering a place you have already been"
+                    : `FAIL: still offered:\n${nagging.slice(0, 400)}`
+            );
+        }
+
+        // ---- self-cleaning ----
+        await cleanUp(page, f, "M6 heard test", 0);
+        if (!process.env.KEEP) {
+            // Through the app's own affordance — S-41's delete is part of what
+            // this milestone claims works — but verified against the store.
+            for (let guard = 0; guard < 6 && (await countRecs()); guard++) {
+                await f.evaluate(() => (location.hash = "#/heard"));
+                await page.waitForTimeout(3000);
+                const clicked = await f.evaluate(() => {
+                    const b = document.querySelector("li.bg-base-200 button");
+                    if (!b) return false;
+                    b.click();
+                    return true;
+                });
+                if (!clicked) break;
+                await page.waitForTimeout(2500);
+                await click(f, "Forget this recommendation");
+                await page.waitForTimeout(3000);
+            }
+            const left = await countRecs();
+            // Belt and braces: whatever the UI could not reach, remove anyway.
+            if (left) {
+                await wipeRecs();
+                await page.waitForTimeout(2000);
+            }
+            const finally_ = await countRecs();
+            console.log(
+                finally_ === 0
+                    ? `[cleanup] recommendations back to 0${left ? ` (${left} needed the blunt instrument)` : ""}`
+                    : `FAIL: ${finally_} recommendation(s) left in the store`
+            );
+        }
     } else if (step === "spike10") {
         // Recommendations live many-to-a-document and that document is mutated
         // for the rest of its life. Does a live subscription notice a sibling
