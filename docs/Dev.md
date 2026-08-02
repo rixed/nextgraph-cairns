@@ -32,3 +32,47 @@ that capability.
 Both drive the logged-in app through headless Chrome, so the devstack must be
 up and the app served (`make run`). The documents land in the user's store like
 any other, and Cairns then discovers them by SPARQL — which is the whole point.
+
+
+## The rest of the foreign store
+
+Media are not the only shape Cairns reads and never writes. Specs §5 lists
+reservations, public events, geometry tracks, external places, foreign
+vocabularies and person records — and until something puts them in the store,
+those rows of the census read zero, S-01's reservation card can never appear,
+and the place facet has nothing more than one level deep to be transitive
+about. `src/spikes/foreignFixture.ts` plays all of those applications at once.
+
+    make seed-foreign                       # the lot
+    make seed-foreign CONTACTS=60 TRACKS=4  # the defaults, spelled out
+    make seed-foreign-clean                 # remove exactly what it wrote
+
+What it writes:
+
+  - **contacts** — 60 by default, because a real address book is not three
+    people and the screens have to survive one that is not. Most are appended
+    to the shared people document (§5: user-owned, any app may append), a few
+    live in documents of their own, and two are `vcard:Individual`, a shape
+    §5 names and `personShape.shex` does not match — so the census counts them
+    and People does not list them.
+  - **tags** — a couple of dozen more concepts in the local scheme, plus a
+    second scheme written by somebody else, so reading across schemes is
+    exercised rather than assumed.
+  - **places** — a gazetteer nested three deep (Alfama → Lisboa → Portugal),
+    with `owl:sameAs` onto Wikidata and OSM. Two of them carry coordinates
+    only as the nested `schema:geo` node and none as the flat pair, which is
+    what a foreign application really writes: the app shows them without
+    coordinates, and that is B-14 in the data rather than in a register.
+  - **events, reservations** — five reservation shapes, two of them imminent
+    so the Here-and-Now card has something to be about, the rest inside the
+    August 2019 window `seed-media` uses so the date-overlap join has both
+    sides.
+  - **tracks** — four, not one: a single track proves nothing about how a
+    layer of them behaves when their times overlap each other.
+
+Every subject it writes carries `app:fixture "seed-foreign"`. The devstack is
+shared with other people's testing, so the marker is what makes
+`seed-foreign-clean` exact — it removes marked subjects and nothing else, in
+one update across every document (spike 8), so the store cannot end up half
+cleaned. The marker is the one inauthentic thing in these documents and nothing
+in the app reads it.

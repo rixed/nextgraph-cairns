@@ -10,6 +10,7 @@
     import Spike7Locations from "../spikes/Spike7Locations.svelte";
     import Spike8Promotion from "../spikes/Spike8Promotion.svelte";
     import Backfill from "../spikes/Backfill.svelte";
+    import SeedForeign from "../spikes/SeedForeign.svelte";
     import { appendConcept } from "../lib/tags";
     import { router } from "../lib/router.svelte";
 
@@ -23,6 +24,7 @@
         { name: "7 · locations", component: Spike7Locations },
         { name: "8 · promotion", component: Spike8Promotion },
         { name: "backfill", component: Backfill },
+        { name: "seed foreign", component: SeedForeign },
     ];
     let current = $state(0);
     const Current = $derived(spikes[current].component);

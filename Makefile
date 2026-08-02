@@ -1,7 +1,7 @@
 # This is the entry point for every build task: package.json deliberately
 # carries no scripts, so the tools are invoked directly here.
 
-.PHONY: all help install build run dev test check orm e2e e2e-m1 e2e-m2 e2e-m3 e2e-m4 seed-media seed-clips clean
+.PHONY: all help install build run dev test check orm e2e e2e-m1 e2e-m2 e2e-m3 e2e-m4 seed-media seed-clips seed-foreign seed-foreign-clean clean
 
 PNPM = pnpm
 # Vite serves on this port for both dev and preview (see vite.config.ts).
@@ -28,6 +28,11 @@ help:
 	@echo '         store, standing in for the applications that would'
 	@echo '         normally have taken the pictures (default 40)'
 	@echo '  - seed-clips: The same, for one video and one audio document'
+	@echo '  - seed-foreign: Write the other half of the store — contacts,'
+	@echo '         tags, places, events, reservations and tracks — standing'
+	@echo '         in for every application Cairns reads and never writes.'
+	@echo '         CONTACTS=$(CONTACTS) TRACKS=$(TRACKS) to vary it'
+	@echo '  - seed-foreign-clean: Remove exactly what seed-foreign wrote'
 	@echo
 	@echo '  - orm: Regenerate src/shapes/orm/ from the SHEX schemas'
 	@echo '  - install: Install dependencies'
@@ -80,6 +85,18 @@ seed-media: node_modules
 
 seed-clips: node_modules
 	node tools/browse.mjs seed-clips
+
+# The rest of the store: everything Cairns reads and never writes (Specs §5),
+# plus contacts, which go into the shared people document any app may append to.
+# Every subject is marked, so seed-foreign-clean removes exactly these and
+# leaves the real archive — and other people's testing — alone.
+CONTACTS = 60
+TRACKS = 4
+seed-foreign: node_modules
+	node tools/browse.mjs seed-foreign $(CONTACTS) $(TRACKS)
+
+seed-foreign-clean: node_modules
+	node tools/browse.mjs seed-foreign-clean
 
 clean:
 	rm -rf dist

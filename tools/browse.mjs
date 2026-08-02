@@ -1250,6 +1250,57 @@ try {
         await click(f, "1b · seed a clip of each kind");
         await waitForLog(f, "seeded a audio document", 300000);
         console.log("[log]\n" + (await readLog(f)));
+    } else if (step === "seed-foreign" || step === "seed-foreign-clean") {
+        // The other half of the store: the shapes Cairns reads and never
+        // writes (§5), plus contacts appended to the shared people document.
+        //   node browse.mjs seed-foreign [contacts] [tracks]
+        const clean = step === "seed-foreign-clean";
+        const contacts = process.argv[3] ?? "60";
+        const tracks = process.argv[4] ?? "4";
+        const f = await loginAndGetFrame(page);
+        await f.evaluate(() => (location.hash = "#/dev"));
+        await page.waitForTimeout(1000);
+        await f.getByRole("tab", { name: "seed foreign" }).click();
+        await settle(f);
+
+        if (clean) {
+            await click(f, "2 \u00b7 clean up");
+            await waitForLog(f, "cleared the fixture", 600000);
+        } else {
+            await f.locator('input[type="number"]').first().fill(contacts);
+            await f.locator('input[type="number"]').nth(1).fill(tracks);
+            await click(f, "1 \u00b7 seed everything");
+            await waitForLog(f, "seeded the foreign store", 900000);
+        }
+        console.log("[log]\n" + (await readLog(f)));
+
+        // What the census now sees, straight from the store: a seeding run
+        // that reported success while writing nothing readable would otherwise
+        // look exactly like one that worked.
+        const counts = await f.evaluate(async () => {
+            const probes = {
+                "foaf:Person": "<http://xmlns.com/foaf/0.1/Person>",
+                "vcard:Individual":
+                    "<http://www.w3.org/2006/vcard/ns#Individual>",
+                "skos:Concept":
+                    "<http://www.w3.org/2004/02/skos/core#Concept>",
+                "skos:ConceptScheme":
+                    "<http://www.w3.org/2004/02/skos/core#ConceptScheme>",
+                "schema:Place": "<https://schema.org/Place>",
+                "schema:Event": "<https://schema.org/Event>",
+                "schema:Reservation": "<https://schema.org/Reservation>",
+                "gsp:Geometry": "<http://www.opengis.net/ont/geosparql#Geometry>",
+            };
+            const out = {};
+            for (const [label, iri] of Object.entries(probes)) {
+                const rows = await window.spikeSelect(
+                    `SELECT ?s WHERE { GRAPH ?g { ?s a ${iri} } }`
+                );
+                out[label] = rows.length;
+            }
+            return out;
+        });
+        console.log("[census]", JSON.stringify(counts));
     } else if (step === "spike6") {
         // Thumbnails at grid scale (B-01): node browse.mjs spike6 [count] [conc]
         const count = process.argv[3] ?? "40";
