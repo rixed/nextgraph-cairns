@@ -978,6 +978,40 @@ try {
             await page.waitForTimeout(3000);
             console.log("[cleanup] spike documents emptied");
         }
+    } else if (step === "spike8") {
+        // B-06: what a write across many documents costs, what a partial
+        // failure leaves behind, and what a reader sees mid-rewrite.
+        const f = await loginAndGetFrame(page);
+        await f.evaluate(() => (location.hash = "#/dev"));
+        await page.waitForTimeout(1000);
+        await f.getByRole("tab", { name: "8 · promotion" }).click();
+        await settle(f);
+        const n = process.argv[3] ?? "20";
+        await f.locator('input[type="number"]').fill(n);
+        const steps = [
+            ["1 · seed memories", "seeded "],
+            ["2 · contact doc", "contact document:"],
+            ["3 · one update, many graphs", "nuri = undefined"],
+            ["4 · promote in sequence", "reader saw"],
+            ["5 · promote together", "concurrent:"],
+            ["6 · fail in the middle", "→ "],
+            ["7 · all in one update", "after it returned:"],
+            ["8 · one bad graph among many", "of the two real documents"],
+        ];
+        for (const [label, needle] of steps) {
+            await click(f, label);
+            await waitForLog(f, needle, 300000).catch((e) =>
+                console.log(`(${label}: ${e.message})`)
+            );
+            await page.waitForTimeout(500);
+        }
+        console.log("[log]\n" + (await readLog(f)));
+        await shot(page, "spike8");
+        if (!process.env.KEEP) {
+            await click(f, "9 · clean up");
+            await waitForLog(f, "deleted ", 300000).catch(() => {});
+            console.log("[cleanup]", (await readLog(f)).split("\n").pop());
+        }
     } else if (step === "cleanup") {
         // node browse.mjs cleanup "<title>" [keep] — remove residue left by
         // earlier runs, through the app's own delete.

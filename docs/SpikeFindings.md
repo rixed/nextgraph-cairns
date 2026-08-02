@@ -256,6 +256,50 @@ IRI, exactly as §3.2 intends.
 the ORM, and a referenced object whose graph is in scope could resolve rather than arriving
 empty.
 
+## Spike 8 — promotion across many documents (B-06)
+
+**Question.** §3.3 promotes a bare name by minting a contact URI and rewriting **every**
+memory that used the same string, "silently and without confirmation". Appendix A's B-06 —
+atomic or best-effort writes across many documents — called the cost "unknown until
+exercised", and the People slice rests on it. Is there a multi-document write at all? What
+does it cost? What does a failure leave behind, and what does a reader see meanwhile?
+
+**Answer: there is one, it is atomic on failure, and it is the only sane way to promote.**
+
+- **One `sparql_update` reaches many graphs.** A single `INSERT DATA` naming two `GRAPH`s
+  landed in both — with `nuri` set to the first document *and* with `nuri` undefined. The
+  per-document loop everyone assumes is necessary is not.
+- **It is all-or-nothing on failure.** An update naming three graphs, the middle one a
+  document that does not exist, was rejected with `OtherError("InvalidNuri")` and **neither
+  real document was written**. At 20 graphs and at 200.
+- **The per-document loop, by contrast, has no rollback.** Failing deliberately on the third
+  of five left 17 of 20 memories pointing at the contact and the rest still naming the bare
+  person — a split archive, and no way to tell afterwards that it happened.
+- **It is also faster**, though that was never the deciding factor:
+
+  | Promotion of | One update, N graphs | N updates in sequence | N updates concurrently |
+  |---|---|---|---|
+  | 20 memories | 85 ms | 165 ms | 181 ms |
+  | 200 memories | 1 869 ms | 2 630 ms | 1 876 ms |
+
+- **Failure atomicity is not read isolation, and the difference shows up with size.** A
+  subscription open across the rewrite was sampled every 5 ms. At 20 graphs it never saw an
+  intermediate state; at 200 graphs it saw 1, 2, 3, then 181 promoted before the update
+  returned. The write never *ends* half-applied, but a reader can watch it happen.
+- Seeding cost `doc_create` + one update at 104–152 ms per document, consistent with spike 1
+  and rising with the number of documents in the store.
+
+**Design decision.** Promotion — of a bare name (§3.3) and of an unnamed place (S-33) alike —
+is **one update over every affected graph**, never a loop. There is no repair path to build
+and no progress state to design, because there is no half-promoted end state to repair. What
+screens must tolerate is a second of flicker on a large promotion, which §8's "partially
+loaded" already requires of them.
+
+**Still unknown.** Only local documents in one session were measured: whether atomicity
+survives a write whose graphs live on a remote broker, or are not yet synced to this device,
+is untested — the same shape of gap as B-13. No upper bound on the number of graphs in one
+update was found at 200.
+
 ## Environment notes
 
 - Wallets pin the broker's peer key: after `make reset`/re-key of the devstack, old
@@ -320,3 +364,16 @@ empty.
    The reading gap is real in the other direction too: a place published by another
    application with `schema:geo` alone shows as having no coordinates here (Appendix A,
    B-14).
+
+## What this means for milestone 4
+
+1. People mirror places exactly: `foaf:Person` read through its own shape over the wildcard
+   scope, `schema:attendee` holding IRIs, a bare name written into the memory's own document
+   as `<memory>#person-N`. `lib/people.ts` is `lib/places.ts` with different predicates.
+2. **Promotion is one update, not a loop** (spike 8). This applies to S-33's place promotion
+   too, and it is why §3.3 can promote silently: there is no half-promoted end state.
+3. The contact document itself follows B-02's shape, the way `tags.ts` already does for the
+   concept scheme — find or create a user-owned document, append, never restructure. B-03 is
+   the second application of that answer, and the first test of whether it generalises.
+4. A large promotion is visible while it runs. Screens should not assume the archive changes
+   in one step, which is the same discipline §8 already asks for.
