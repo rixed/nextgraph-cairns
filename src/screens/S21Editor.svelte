@@ -31,6 +31,10 @@
         type AttendeeDraft,
     } from "../lib/people";
     import { createMemory, updateMemory } from "../lib/memories";
+    import {
+        useRecommendations,
+        fulfilRecommendations,
+    } from "../lib/recommendations";
     import { browse } from "../lib/browse.svelte";
     import { router } from "../lib/router.svelte";
     import PrecisionDatePicker from "../components/PrecisionDatePicker.svelte";
@@ -143,6 +147,33 @@
             : [...tags, iri];
     };
 
+    const recs = useRecommendations();
+
+    /**
+     * §6.2: "capturing at a recommended place or event marks that
+     * recommendation fulfilled". After the memory is saved, not before — a
+     * recommendation must never be marked as visited by a memory that failed
+     * to write.
+     *
+     * Only identified places count. A dropped pin cannot fulfil anything,
+     * because nothing can point at it (§1.3) — including a recommendation.
+     * Editing counts as much as capturing: adding the place a week later is
+     * the same claim about having been there.
+     */
+    async function fulfil(doc: string) {
+        const referents = locations
+            .filter((l) => l.kind === "place")
+            .map((l) => l.iri);
+        if (!referents.length) return;
+        try {
+            await fulfilRecommendations(recs.all, referents, doc);
+        } catch (e) {
+            // The memory is saved; a missed mark is worth a line in the console
+            // and nothing more. Losing what was written would not be.
+            console.error("fulfilment", e);
+        }
+    }
+
     async function save() {
         saving = true;
         error = "";
@@ -162,9 +193,11 @@
             };
             if (editedDoc) {
                 await updateMemory(editedDoc, fields);
+                await fulfil(editedDoc);
                 router.pop();
             } else {
                 const doc = await createMemory(fields);
+                await fulfil(doc);
                 router.pop();
                 router.push({ name: "detail", params: { doc } });
             }

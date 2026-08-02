@@ -106,3 +106,106 @@ describe("sortHeardAbout", () => {
         expect(ids(input)).toEqual(["b", "a"]);
     });
 });
+
+// The two S-01 cards. Built on ResolvedRecommendation directly: `resolve` is
+// plumbing over three lookups, and what is worth pinning down is which of the
+// two cards a given thing lands on — the rule §6.2 states and the one place
+// where "nearby" and "soon" have to agree.
+import { bestMoment, nearbyRecommended } from "./heardAbout";
+import type { ResolvedRecommendation } from "./heardAbout";
+
+const rec = (
+    id: string,
+    r: Partial<ResolvedRecommendation> & { fulfilled?: boolean } = {}
+): ResolvedRecommendation => ({
+    rec: {
+        doc: "d",
+        id,
+        item: "i",
+        tags: [],
+        fulfilledBy: r.fulfilled ? "a-memory" : undefined,
+    },
+    label: id,
+    ...r,
+    // Derived, never passed in: a fixture that could claim "upcoming" while
+    // holding a span from 2019 would test nothing.
+    urgency: urgencyOf(r, NOW),
+});
+
+describe("bestMoment", () => {
+    const near = { distanceKm: 3 };
+
+    it("wants both halves: happening soon and nearby", () => {
+        const rows = [
+            rec("here and now", {
+                ...near,
+                span: span(NOW + DAY, NOW + 2 * DAY),
+            }),
+            rec("soon but far", {
+                distanceKm: 900,
+                span: span(NOW + DAY, NOW + 2 * DAY),
+            }),
+            rec("near but undated", near),
+            rec("near but over", { ...near, span: span(NOW - 40 * DAY) }),
+        ];
+        expect(bestMoment(rows, NOW).map((r) => r.label)).toEqual([
+            "here and now",
+        ]);
+    });
+
+    it("keeps something already under way", () => {
+        expect(
+            bestMoment(
+                [rec("started yesterday", { ...near, span: span(NOW - DAY, NOW + DAY) })],
+                NOW
+            )
+        ).toHaveLength(1);
+    });
+
+    it("drops one you have already been to", () => {
+        // The card is a prompt to go somewhere, and you went.
+        expect(
+            bestMoment(
+                [
+                    rec("been there", {
+                        ...near,
+                        span: span(NOW + DAY),
+                        fulfilled: true,
+                    }),
+                ],
+                NOW
+            )
+        ).toEqual([]);
+    });
+});
+
+describe("nearbyRecommended", () => {
+    it("takes a nearby place whether or not it has a date", () => {
+        expect(
+            nearbyRecommended(
+                [
+                    rec("a bar", { distanceKm: 1 }),
+                    rec("far away", { distanceKm: 400 }),
+                ],
+                NOW
+            ).map((r) => r.label)
+        ).toEqual(["a bar"]);
+    });
+
+    it("never repeats what the first card already showed", () => {
+        const rows = [
+            rec("the festival", { distanceKm: 2, span: span(NOW + DAY) }),
+        ];
+        expect(bestMoment(rows, NOW)).toHaveLength(1);
+        expect(nearbyRecommended(rows, NOW)).toEqual([]);
+    });
+
+    it("leaves out something whose date has passed", () => {
+        expect(
+            nearbyRecommended(
+                [rec("last year's fair", { distanceKm: 1, span: span(NOW - 300 * DAY) })],
+                NOW
+            )
+        ).toEqual([]);
+    });
+});

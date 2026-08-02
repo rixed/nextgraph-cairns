@@ -16,27 +16,21 @@
         recommendationsReady,
         type Recommendation,
     } from "../lib/recommendations";
-    import {
-        useEvents,
-        findEvent,
-        eventSpan,
-        type PublicEvent,
-    } from "../lib/events.svelte";
-    import {
-        useAllPlaces,
-        findPlace,
-        placeLabel,
-        type Place,
-    } from "../lib/places";
+    import { useEvents } from "../lib/events.svelte";
+    import { useAllPlaces, placeLabel, type Place } from "../lib/places";
     import {
         useAllPeople,
         findPerson,
         personLabel,
         personKey,
     } from "../lib/people";
-    import { sortHeardAbout, urgencyOf, type Urgency } from "../lib/heardAbout";
-    import { useHere, km, formatKm } from "../lib/here.svelte";
-    import { formatPrecisionDate, interval } from "../lib/dates";
+    import {
+        resolve,
+        sortHeardAbout,
+        type Urgency,
+    } from "../lib/heardAbout";
+    import { useHere, formatKm } from "../lib/here.svelte";
+    import { formatPrecisionDate } from "../lib/dates";
     import { browse } from "../lib/browse.svelte";
     import { router } from "../lib/router.svelte";
 
@@ -55,48 +49,11 @@
     let unfulfilledOnly = $state(false);
     let toldBy = $state("");
 
-    interface Row {
-        rec: Recommendation;
-        event?: PublicEvent;
-        /** The place it happens at: the referent, or the event's location. */
-        place?: Place;
-        label: string;
-        span?: ReturnType<typeof eventSpan>;
-        distanceKm?: number;
-        toldMs?: number;
-        urgency: Urgency;
-    }
-
-    const rows = $derived.by((): Row[] => {
-        const now = Date.now();
-        const out = recs.all.map((rec) => {
-            const event = findEvent(events.all, rec.item);
-            const placeIri = event ? event.location : rec.item;
-            const place = placeIri
-                ? findPlace(places.all, placeIri)
-                : undefined;
-            const span = event ? eventSpan(event) : undefined;
-            const distanceKm =
-                where.position &&
-                place?.lat !== undefined &&
-                place.lon !== undefined
-                    ? km(where.position, { lat: place.lat, lon: place.lon })
-                    : undefined;
-            return {
-                rec,
-                event,
-                place,
-                label: event
-                    ? (event.name ?? "an event")
-                    : placeLabel(place, rec.item),
-                span,
-                distanceKm,
-                toldMs: rec.told ? interval(rec.told).earliest : undefined,
-                urgency: urgencyOf({ span }, now),
-            };
-        });
-        return sortHeardAbout(out, now);
-    });
+    const rows = $derived(
+        sortHeardAbout(
+            resolve(recs.all, events.all, places.all, where.position)
+        )
+    );
 
     /** Who has ever told the user anything — the source facet's options. */
     const sources = $derived.by(() => {

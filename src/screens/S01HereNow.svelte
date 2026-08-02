@@ -24,6 +24,13 @@
     } from "../lib/reservations.svelte";
     import ReservationCard from "../components/ReservationCard.svelte";
     import { useHere, km, formatKm } from "../lib/here.svelte";
+    import { useRecommendations } from "../lib/recommendations";
+    import { useEvents } from "../lib/events.svelte";
+    import {
+        resolve,
+        bestMoment,
+        nearbyRecommended,
+    } from "../lib/heardAbout";
 
     const memories = useShape(MemoryShapeType, "did:ng:i");
     const places = useAllPlaces();
@@ -49,6 +56,25 @@
      */
     const reservations = useReservations();
     const soon = $derived(imminent(reservations.all));
+
+    /**
+     * §6.2's first and third cards, and the reason this screen is ordered by
+     * proximity rather than by date: what somebody told you about, when you
+     * happen to be near it. The first card wants both halves — happening soon
+     * *and* nearby — which §4.2 calls the whole recommendation model paying
+     * off; the third is the same thing with the date requirement dropped.
+     *
+     * Both are conditional in the ordinary way: without a position, or with
+     * nothing recommended nearby, neither appears and the screen reads exactly
+     * as it did before.
+     */
+    const recs = useRecommendations();
+    const events = useEvents();
+    const heard = $derived(
+        resolve(recs.all, events.all, places.all, where.position)
+    );
+    const now = $derived(bestMoment(heard));
+    const around = $derived(nearbyRecommended(heard));
 
     interface Near {
         m: Memory;
@@ -117,12 +143,92 @@
         </div>
     {/if}
 
+    {#if now.length}
+        <!-- The app's best moment (§4.2): the thing you were told about is
+             happening, and you are near it. First card, above the logistics. -->
+        <div>
+            <h2 class="text-sm font-semibold opacity-70 mb-1">
+                Happening near you
+            </h2>
+            <ul class="flex flex-col gap-2">
+                {#each now as r (r.rec.id)}
+                    <li
+                        class="bg-primary/10 border border-primary/30 rounded-box p-3"
+                    >
+                        <button
+                            class="text-left w-full"
+                            onclick={() =>
+                                router.push({
+                                    name: "recommendation",
+                                    params: { id: r.rec.id },
+                                })}
+                        >
+                            <span class="font-medium">📅 {r.label}</span>
+                            <span class="block text-xs opacity-70">
+                                {#if r.event?.start}
+                                    {formatPrecisionDate(r.event.start)}
+                                    {#if r.event.end}
+                                        – {formatPrecisionDate(r.event.end)}
+                                    {/if}
+                                    ·
+                                {/if}
+                                {#if r.distanceKm !== undefined}
+                                    {formatKm(r.distanceKm)} away
+                                {/if}
+                            </span>
+                            {#if r.rec.note}
+                                <span class="block text-sm mt-1">
+                                    {r.rec.note}
+                                </span>
+                            {/if}
+                        </button>
+                    </li>
+                {/each}
+            </ul>
+        </div>
+    {/if}
+
     {#if soon.length}
         <div>
             <h2 class="text-sm font-semibold opacity-70 mb-1">Coming up</h2>
             <ul class="bg-base-200 rounded-box w-full p-3 flex flex-col gap-2">
                 {#each soon as r (r.id)}
                     <li><ReservationCard {r} /></li>
+                {/each}
+            </ul>
+        </div>
+    {/if}
+
+    {#if around.length}
+        <!-- Third card: recommended, nearby, dated or not. -->
+        <div>
+            <h2 class="text-sm font-semibold opacity-70 mb-1">
+                You were told about these, and they are near
+            </h2>
+            <ul class="menu bg-base-200 rounded-box w-full">
+                {#each around as r (r.rec.id)}
+                    <li>
+                        <button
+                            onclick={() =>
+                                router.push({
+                                    name: "recommendation",
+                                    params: { id: r.rec.id },
+                                })}
+                        >
+                            <span class="flex flex-col items-start">
+                                <span class="font-medium">
+                                    {r.event ? "📅" : "📍"}
+                                    {r.label}
+                                </span>
+                                <span class="text-xs opacity-60">
+                                    {#if r.distanceKm !== undefined}
+                                        {formatKm(r.distanceKm)} away
+                                    {/if}
+                                    {#if r.rec.note}· {r.rec.note}{/if}
+                                </span>
+                            </span>
+                        </button>
+                    </li>
                 {/each}
             </ul>
         </div>
@@ -180,7 +286,7 @@
         </div>
     {/if}
 
-    {#if ready && !nearby.length && !onThisDay.length && !soon.length && !where.locating}
+    {#if ready && !nearby.length && !onThisDay.length && !soon.length && !now.length && !around.length && !where.locating}
         <!-- Nothing here, nothing now: never blank (§8). -->
         <div class="text-center py-10 flex flex-col items-center gap-3">
             <p class="opacity-70">

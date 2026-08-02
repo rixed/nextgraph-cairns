@@ -27,6 +27,7 @@
         personLabel,
         isBareName,
     } from "../lib/people";
+    import { useRecommendations } from "../lib/recommendations";
     import { router } from "../lib/router.svelte";
     import TagChips from "../components/TagChips.svelte";
     import MediaStrip from "../components/MediaStrip.svelte";
@@ -97,6 +98,22 @@
         span ? overlapping(reservations.all, span) : []
     );
     const traces = $derived(span ? tracksDuring(tracks.all, span) : []);
+
+    /**
+     * What capturing this memory fulfilled (§6.2, S-21). Not an overlap join
+     * like the two above: this is a fact somebody recorded, pointing here.
+     */
+    const recs = useRecommendations();
+    const closes = $derived(recs.all.filter((r) => r.fulfilledBy === doc));
+
+    function whoTold(r: (typeof closes)[number]): string | undefined {
+        if (r.attributedTo)
+            return personLabel(
+                findPerson(people.all, r.attributedTo),
+                r.attributedTo
+            );
+        return r.source?.trim() || undefined;
+    }
 
     // Date as well as time: a memory may span a year, and "10:15" alone
     // would say nothing about which morning.
@@ -203,6 +220,31 @@
         {/if}
 
         <MediaStrip memory={memory as unknown as Memory} />
+
+        {#if closes.length}
+            <!-- The other half of §6.2's fulfilment rule, said where the user
+                 will see it: capturing here marked something as visited, and
+                 that would otherwise happen silently in another document. -->
+            <div class="flex flex-col gap-1">
+                <h2 class="text-xs font-semibold opacity-60">
+                    You had been told about this
+                </h2>
+                {#each closes as r (r.id)}
+                    <button
+                        class="text-xs text-left link link-hover"
+                        onclick={() =>
+                            router.push({
+                                name: "recommendation",
+                                params: { id: r.id },
+                            })}
+                    >
+                        ✓ {whoTold(r) ?? "Somebody"} told you about this{r.note
+                            ? ` — ${r.note}`
+                            : ""}
+                    </button>
+                {/each}
+            </div>
+        {/if}
 
         {#if bookings.length}
             <div class="flex flex-col gap-1">

@@ -9,10 +9,10 @@
     // exactly that, so the map and the grid stay the only two screens that draw
     // memories in space.
     //
-    // Absent by §5's first rule rather than stubbed: recommendation status
-    // (S-40 is not built), conditional spend (nothing writes an expense),
-    // events here (they want S-34 to open into), and "edit if locally owned"
-    // (S-33). Each is a section that does not appear, not an empty one.
+    // Absent by §5's first rule rather than stubbed: conditional spend (nothing
+    // writes an expense), events here (they want S-34 to open into), and "edit
+    // if locally owned" (S-33). Each is a section that does not appear, not an
+    // empty one.
     import { useShape } from "@ng-org/orm/svelte";
     import { OrmSubscription, normalizeScope } from "@ng-org/orm";
     import { MemoryShapeType } from "../shapes/orm/memoryShape.shapeTypes";
@@ -28,6 +28,8 @@
     import { formatPrecisionDate, parsePrecisionDate } from "../lib/dates";
     import { browse } from "../lib/browse.svelte";
     import { router } from "../lib/router.svelte";
+    import { useRecommendations, about } from "../lib/recommendations";
+    import { useAllPeople, findPerson, personLabel } from "../lib/people";
 
     const iri = router.current.params!.iri;
     const memories = useShape(MemoryShapeType, "did:ng:i");
@@ -73,6 +75,24 @@
                 (b.start?.lexical ?? "").localeCompare(a.start?.lexical ?? "")
             )
     );
+
+    /**
+     * §6.2's "recommendation status": whether anyone pointed you here, and
+     * whether you went. Conditional like every other section — a place nobody
+     * mentioned says nothing about recommendations at all.
+     */
+    const recs = useRecommendations();
+    const people = useAllPeople();
+    const told = $derived(about(recs.all, iri));
+
+    function whoTold(r: (typeof told)[number]): string | undefined {
+        if (r.attributedTo)
+            return personLabel(
+                findPerson(people.all, r.attributedTo),
+                r.attributedTo
+            );
+        return r.source?.trim() || undefined;
+    }
 
     /** Hand the filter this place and let the projection that draws it draw it. */
     function showIn(projection: "space" | "media") {
@@ -180,7 +200,61 @@
             <button class="btn btn-sm" onclick={() => showIn("media")}>
                 Photographs here
             </button>
+            <button
+                class="btn btn-sm"
+                onclick={() =>
+                    router.push({
+                        name: "recommendation",
+                        params: { item: iri },
+                    })}
+            >
+                Someone told me about this
+            </button>
         </div>
+
+        {#if told.length}
+            <div>
+                <h2 class="text-sm font-semibold opacity-70 mb-1">
+                    What you were told
+                </h2>
+                <ul class="bg-base-200 rounded-box w-full p-3 flex flex-col gap-2">
+                    {#each told as r (r.id)}
+                        <li class="text-sm flex flex-col gap-0.5">
+                            <span class="text-xs opacity-70">
+                                {whoTold(r) ?? "Somebody"} told you
+                                {#if r.told}· {formatPrecisionDate(r.told)}{/if}
+                                {#if r.fulfilledBy}· you went{/if}
+                            </span>
+                            {#if r.note}<span>{r.note}</span>{/if}
+                            <div class="flex gap-2">
+                                <button
+                                    class="btn btn-ghost btn-xs self-start"
+                                    onclick={() =>
+                                        router.push({
+                                            name: "recommendation",
+                                            params: { id: r.id },
+                                        })}
+                                >
+                                    edit
+                                </button>
+                                {#if r.fulfilledBy}
+                                    <button
+                                        class="btn btn-ghost btn-xs self-start"
+                                        onclick={() =>
+                                            router.push({
+                                                name: "detail",
+                                                params: { doc: r.fulfilledBy! },
+                                            })}
+                                    >
+                                        open the memory
+                                    </button>
+                                {/if}
+                            </div>
+                        </li>
+                    {/each}
+                </ul>
+            </div>
+        {/if}
 
         {#if here.length}
             <div>
