@@ -18,6 +18,11 @@
     import { useAllPlaces, findPlace, placeLabel } from "../lib/places";
     import { parsePrecisionDate, formatPrecisionDate } from "../lib/dates";
     import { router } from "../lib/router.svelte";
+    import {
+        useReservations,
+        imminent,
+    } from "../lib/reservations.svelte";
+    import ReservationCard from "../components/ReservationCard.svelte";
 
     const memories = useShape(MemoryShapeType, "did:ng:i");
     const places = useAllPlaces();
@@ -55,6 +60,15 @@
     });
 
     const all = $derived([...memories] as unknown as Memory[]);
+
+    /**
+     * §6.2's second card, ahead of everything but a live recommendation:
+     * logistics you are about to need. Conditional like every other data
+     * section (§5) — absent when nothing is booked, never an empty state
+     * advertising a shape the store does not contain.
+     */
+    const reservations = useReservations();
+    const soon = $derived(imminent(reservations.all));
 
     /** Kilometres between two points, near enough for "was I here before?". */
     function km(
@@ -139,6 +153,17 @@
         </div>
     {/if}
 
+    {#if soon.length}
+        <div>
+            <h2 class="text-sm font-semibold opacity-70 mb-1">Coming up</h2>
+            <ul class="bg-base-200 rounded-box w-full p-3 flex flex-col gap-2">
+                {#each soon as r (r.id)}
+                    <li><ReservationCard {r} /></li>
+                {/each}
+            </ul>
+        </div>
+    {/if}
+
     {#if locating}
         <p class="text-sm opacity-60">finding out where you are…</p>
     {:else if nearby.length}
@@ -193,7 +218,7 @@
         </div>
     {/if}
 
-    {#if ready && !nearby.length && !onThisDay.length && !locating}
+    {#if ready && !nearby.length && !onThisDay.length && !soon.length && !locating}
         <!-- Nothing here, nothing now: never blank (§8). -->
         <div class="text-center py-10 flex flex-col items-center gap-3">
             <p class="opacity-70">
