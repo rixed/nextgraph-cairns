@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseWkt } from "./tracks.svelte";
+import { parseWkt, tracksDuring, type Track } from "./tracks.svelte";
 
 describe("parseWkt", () => {
     it("reads a linestring in WKT's longitude-first order", () => {
@@ -33,5 +33,40 @@ describe("parseWkt", () => {
     it("survives a truncated literal", () => {
         expect(parseWkt("LINESTRING")).toEqual([]);
         expect(parseWkt("")).toEqual([]);
+    });
+});
+
+const DAY = 86_400_000;
+const T0 = Date.parse("2019-08-13T08:00:00Z");
+const track = (id: string, start?: number, end?: number): Track => ({
+    id,
+    line: [
+        [0, 0],
+        [1, 1],
+    ],
+    startMs: start,
+    endMs: end,
+});
+
+describe("tracksDuring", () => {
+    const span = { earliest: T0, latest: T0 + DAY };
+
+    it("takes a track that runs into the memory's span", () => {
+        expect(
+            tracksDuring(
+                [
+                    track("overlaps", T0 - DAY, T0 + 1000),
+                    track("inside", T0 + 1000, T0 + 2000),
+                    track("later", T0 + 5 * DAY),
+                ],
+                span
+            ).map((t) => t.id)
+        ).toEqual(["overlaps", "inside"]);
+    });
+
+    it("never claims an undated track", () => {
+        // It could be from any year; guessing would attach someone's morning
+        // walk to the wrong decade.
+        expect(tracksDuring([track("whenever")], span)).toEqual([]);
     });
 });

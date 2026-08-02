@@ -64,7 +64,7 @@ export async function loadReservations(): Promise<Reservation[]> {
     const values = RESERVATION_TYPES.map((t) => `schema:${t}`).join(" ");
     const rows = await select(
         `PREFIX schema: <${SCHEMA}>
-         SELECT ?s ?type ?num ?forName ?checkin ?checkout ?start ?dep ?arr
+         SELECT ?s ?type ?num ?forName ?flight ?train ?checkin ?checkout ?start ?dep ?arr
          WHERE { GRAPH ?g {
             VALUES ?type { ${values} }
             ?s a ?type .
@@ -75,6 +75,10 @@ export async function loadReservations(): Promise<Reservation[]> {
             OPTIONAL {
                 ?s schema:reservationFor ?for .
                 OPTIONAL { ?for schema:name ?forName }
+                # A flight or a train is usually identified by its number
+                # rather than named; either is what to show the user.
+                OPTIONAL { ?for schema:flightNumber ?flight }
+                OPTIONAL { ?for schema:trainNumber ?train }
                 OPTIONAL { ?for schema:departureTime ?dep }
                 OPTIONAL { ?for schema:arrivalTime ?arr }
             }
@@ -96,7 +100,11 @@ export async function loadReservations(): Promise<Reservation[]> {
             id,
             kind: seen ? mostSpecific(seen.kind, kind) : kind,
             number: seen?.number ?? b.num?.value,
-            forName: seen?.forName ?? b.forName?.value,
+            forName:
+                seen?.forName ??
+                b.forName?.value ??
+                b.flight?.value ??
+                b.train?.value,
             startMs: seen?.startMs ?? startMs,
             endMs: seen?.endMs ?? endMs,
         });

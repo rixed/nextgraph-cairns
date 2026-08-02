@@ -58,6 +58,24 @@ export async function loadTracks(): Promise<Track[]> {
 }
 
 /**
+ * Tracks whose time overlaps a memory's span (§5: "shown on a memory when the
+ * times overlap"). A track with no time at all is never claimed by a memory —
+ * it may be from any year, and guessing would attach someone's morning walk to
+ * the wrong decade.
+ */
+export function tracksDuring(
+    all: Track[],
+    span: { earliest: number; latest: number }
+): Track[] {
+    return all.filter((t) => {
+        if (t.startMs === undefined) return false;
+        return (
+            t.startMs <= span.latest && (t.endMs ?? t.startMs) >= span.earliest
+        );
+    });
+}
+
+/**
  * Tracks, loaded once per screen. No subscription: nothing in this app writes
  * a geometry, so the only way the set changes under us is another application
  * writing one, and a map that misses it until the next visit is no worse than

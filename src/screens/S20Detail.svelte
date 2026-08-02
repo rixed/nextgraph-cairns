@@ -7,7 +7,11 @@
     import {
         parsePrecisionDate,
         formatPrecisionDate,
+        memoryInterval,
     } from "../lib/dates";
+    import { useReservations, overlapping } from "../lib/reservations.svelte";
+    import { useTracks, tracksDuring } from "../lib/tracks.svelte";
+    import ReservationCard from "../components/ReservationCard.svelte";
     import { deleteMemory } from "../lib/memories";
     import {
         useAllPlaces,
@@ -78,6 +82,28 @@
             };
         })
     );
+
+    /**
+     * Foreign evidence claimed by time (§5): reservations and tracks whose
+     * span overlaps this memory's. Neither is edited and neither is stored on
+     * the memory — the overlap is recomputed, the way §3.4 already derives a
+     * memory's photographs. Conditional, so a store with none of this shows
+     * nothing rather than an empty heading.
+     */
+    const reservations = useReservations();
+    const tracks = useTracks();
+    const span = $derived(start ? memoryInterval(start, end) : undefined);
+    const bookings = $derived(
+        span ? overlapping(reservations.all, span) : []
+    );
+    const traces = $derived(span ? tracksDuring(tracks.all, span) : []);
+
+    // Date as well as time: a memory may span a year, and "10:15" alone
+    // would say nothing about which morning.
+    const clock = new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+    });
 
     let confirming = $state(false);
     let deleting = $state(false);
@@ -172,6 +198,38 @@
         {/if}
 
         <MediaStrip memory={memory as unknown as Memory} />
+
+        {#if bookings.length}
+            <div class="flex flex-col gap-1">
+                <h2 class="text-xs font-semibold opacity-60">
+                    Booked around this
+                </h2>
+                {#each bookings as r (r.id)}
+                    <ReservationCard {r} compact />
+                {/each}
+            </div>
+        {/if}
+
+        {#if traces.length}
+            <div class="flex flex-col gap-1">
+                <h2 class="text-xs font-semibold opacity-60">
+                    Recorded at the same time
+                </h2>
+                {#each traces as t (t.id)}
+                    <div class="text-xs flex items-baseline gap-2">
+                        <span style="color:#e05a2b">—</span>
+                        <span class="font-medium">{t.name ?? "a track"}</span>
+                        {#if t.startMs !== undefined}
+                            <span class="opacity-60">
+                                {clock.format(t.startMs)}{t.endMs
+                                    ? ` – ${new Date(t.endMs).toLocaleTimeString(undefined, { timeStyle: "short" })}`
+                                    : ""}
+                            </span>
+                        {/if}
+                    </div>
+                {/each}
+            </div>
+        {/if}
 
         <div class="flex gap-2 mt-4">
             <button
