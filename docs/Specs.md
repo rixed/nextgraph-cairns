@@ -24,8 +24,10 @@ top of a framework it treats as an operating system (§1.2).
    at any precision.
 4. **Claims and evidence are distinct.** What the user asserted and what the media prove
    are separate; neither overwrites the other.
-5. **Classification is cheap, narrative is deliberate.** Tagging a hundred memories is one
-   gesture. Writing about them is a considered act that produces a memory of its own.
+5. **Classification is flexible.** Tags are the only way to organise memories.
+The memory "Beach party in Porto Santo" is part of "Boat Tour 2021" because of
+the date span (implicitly) or because it's tagged "BoatTour21" (explicit) but
+one does not otherwise reference the other.
 
 ### 1.2 Platform
 
@@ -101,8 +103,9 @@ app owns.
 | People | `schema:attendee` × 0..N | Person URI or nested bare name, §3.3 |
 | Tags | `dcterms:subject` → `skos:Concept` | **The primary grouping**, §3.5 |
 | Media | `schema:subjectOf` → foreign `schema:ImageObject` etc. | References only; §3.4 |
+| Prompted by | prov:wasInfluencedBy → app:Recommendation × 0..N | Optional, fulfill that recommendation |
 | Rating | `schema:review` → `schema:Review` | Optional, nested |
-| Public event | `schema:about` → `schema:Event` | Optional, §4.3 |
+| Public event | `schema:about` → `schema:Event` × 0..N | Optional, §4.3 |
 | Cover | `schema:image` | Optional; a reference to one of its media |
 | Provenance | `prov:wasGeneratedBy` | Only when the memory was derived from another document |
 
@@ -250,11 +253,7 @@ rendering, and derived parent spans, and costs nothing.
 
 ### 3.6 Trip interoperability
 
-**Interoperability.** A memory the user thinks of as a trip additionally asserts
-`schema:Trip`, alongside `app:Memory` and `schema:Event`. Multi-typing is free in RDF, so a
-travel-aware consumer recognises it while this app never branches on type. Set by a toggle
-in S-21; no effect inside the app. A memory typed `schema:Trip` has no members and no
-itinerary — it is a record of a trip, not a container for one.
+SUPPRESSED
 
 ### 3.7 Other owned objects
 
@@ -347,11 +346,11 @@ not listening.
 | When told | `dcterms:date` | Precision-aware; the weaker of the two dates |
 | Note | `schema:description` | What they said about it |
 | Tags | `dcterms:subject` | Shared scheme |
-| Fulfilled | `schema:about` → the memory that fulfilled it | Set when a memory is captured there |
 
 The record is *"Ana told me about this in March"*, not *"I plan to go here"*. Provenance
 first, which is what keeps it in a memory app, and what makes it the landing zone for P1
 recommendations with no model change.
+A recommendation is said to be "fulfilled" when a memory references it via its `prov:wasInfluencedBy` field.
 
 ### 4.2 Place or event referents
 
@@ -375,7 +374,7 @@ Ana suggested it, and recurring events come round again.
 
 ### 4.3 Memories about public events
 
-A memory may reference a public event with `schema:about`. This groups every time the user
+A memory may reference public events with `schema:about`. This groups every time the user
 attended the same recurring thing, across years, without needing a tag — a second
 grouping mechanism that costs nothing because the event document already exists.
 
@@ -499,24 +498,26 @@ becomes a bulk tagging operation.
 **S-20 Memory detail** — P0
 Title or date as heading; date at stored precision; narrative; locations; attendees; tags;
 media; rating. Locations link to S-31 when identified, or show an inline map when unnamed.
+Recommendations that prompted this memory, with the note and who gave it.
 Attendees link to S-61 when contacts, or offer promotion when bare names. A public-event
-reference links to S-34. Conditional foreign sections: overlapping bookings,
+reference links to S-34.
+
+Conditional foreign sections: overlapping bookings,
 expenses, tracks. Sibling memories at the same place, with the same people, sharing tags,
 or about the same public event.
-*P1:* comments, share, who else remembers this.
+*P1:* comments, share, who else remembers this, signal a recommendation as fulfilled to the person who recommended it.
 
 **S-21 Memory editor** — P0
 The most-used surface, one tap from S-01. Only a date is required, defaulting to now at day
 precision. Optional: title, narrative, date with precision selector, locations (0..N —
 identified via S-32 or a dropped pin), attendees (0..N — contacts or typed names), tags,
-media, rating, public event, and an "also a trip" toggle adding the `schema:Trip`
-type.
+media, rating, public event (0..N — from discovered public events).
 
 Media are **selected, not uploaded**: a picker over the user's discoverable media documents,
 pre-filtered to the memory's span and location and showing what would be associated by
 overlap anyway, so the user attaches only the exceptions. Offers a derived location when
 media carry coordinates and none is claimed. Capturing
-at a recommended place or event marks that recommendation fulfilled.
+at a recommended place or event offers to link that recommendation to the memory.
 
 **S-22 Browse** — P0
 The shell: filter bar, projection switcher, selection mode. Filter and scroll position
@@ -570,7 +571,7 @@ Actions: capture a memory about it, add a recommendation, open externally.
 **S-40 Heard about** — P0
 Places and events you have been told about. Default sort: **happening soonest**, then
 nearest, then most recently told. Shows who told you and when, and marks expired and
-fulfilled items without hiding them. Filter by source, tag, country, type, fulfilled,
+fulfilled items without hiding them. Filter by source, tag, country, type, fulfilled (derived from memories),
 still-upcoming. Hands off to S-22b for the map.
 *P1:* incoming recommendations land here; X-05 asks for more.
 
@@ -694,6 +695,7 @@ via S-32. From X-03.
 | S-20 | S-20 | tap a sibling by place, people, tag, or public event |
 | S-20 | S-22c | tap the media strip (filter scoped to this memory) |
 | S-20 | S-22a | tap a tag |
+| S-20 | S-40 | tap a recommendation |
 | S-20 | *foreign app* | tap an overlapping booking, expense, or track |
 | S-21 | S-32 | add a location |
 | S-21 | S-33 | drop and adjust a pin |
@@ -852,9 +854,7 @@ live in Appendix A instead.
 3. **Enumerated tag grants** (P1) do not retroactively include memories tagged after the
    grant. Acceptable, or does a shared tag set need a container of its own — which would make
    it an object again, and reopen the grouping decision?
-4. **Does a memory need more than one public event reference?** A day at a festival that also
-   happened to be a national holiday. Currently one; probably fine, tags cover the rest.
-5. **What the share sheet shows on partial failure** — the memory grant succeeds, three of
+4. **What the share sheet shows on partial failure** — the memory grant succeeds, three of
    eleven media grants do not. Cairn's problem regardless of who provides granting (**B-07**).
 
 ---
