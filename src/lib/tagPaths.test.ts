@@ -135,3 +135,33 @@ describe("isNew", () => {
         expect(isNew(tree, "  ")).toBe(false);
     });
 });
+
+describe("multi-word labels", () => {
+    // Why the separator is not a space. Published SKOS vocabularies are mostly
+    // multi-word: 68% of AGROVOC's English labels contain one, 73% of Getty
+    // AAT's, 90% of the EU Publications Office's. This app reads foreign
+    // schemes and never restructures them (§5), so a space separator would
+    // make "cork oak" — a real concept in a real scheme — both untypeable and
+    // silently re-read as a two-level hierarchy nobody published.
+    const foreign: Concept[] = [
+        c("pt", "Portugal"),
+        c("sc", "south coast", "pt"),
+        c("ck", "cork oak"),
+    ];
+
+    it("keeps spaces inside a segment", () => {
+        expect(findPath(foreign, ["Portugal", "south coast"])?.id).toBe("sc");
+        expect(pathOf(foreign, "sc")).toBe("Portugal/south coast");
+    });
+
+    it("completes a multi-word label from a partial word", () => {
+        expect(labels(completions(foreign, "Portugal/south"))).toEqual([
+            "south coast",
+        ]);
+    });
+
+    it("treats a foreign multi-word concept as one tag, not a hierarchy", () => {
+        expect(splitPath("cork oak")).toEqual(["cork oak"]);
+        expect(isNew(foreign, "cork oak")).toBe(false);
+    });
+});

@@ -138,6 +138,12 @@ so another application reads ordinary SKOS rather than a string convention. The 
 interface, the tree is the data — and the separator lives in one file (`lib/tagPaths.ts`), at
 the price of not being able to write a tag whose label contains a slash.
 
+**Not a space**, which would be easier to type. Labels in published vocabularies are mostly
+multi-word — 68% of AGROVOC's English `skos:prefLabel`s contain a space, 73% of Getty AAT's,
+90% of the EU Publications Office's, all measured by SPARQL against their endpoints. Since the
+app reads foreign schemes and never restructures them (§5), a space separator would make "cork
+oak" untypeable and silently re-read it as a hierarchy nobody published.
+
 Completion is scoped: `portugal/li` offers Portugal's children, never `food/lisboa`. That is
 what makes two hundred tags navigable. `make tagpicker` drives it end to end and cleans up
 after itself.
