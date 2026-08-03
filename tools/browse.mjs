@@ -2089,6 +2089,137 @@ try {
                     : `FAIL: ${left} probe concept(s) left in the store`
             );
         }
+    } else if (step === "search") {
+        // S-02 (§6.2) without an index (B-08): free text over the store,
+        // grouped by type, and handed to S-22 as a filter so that a search
+        // becomes a bulk action. Self-cleaning.
+        const f = await loginAndGetFrame(page);
+        await settle(f);
+
+        // A needle nothing else in the store contains, so the counts are ours.
+        const NEEDLE = "zarquon";
+        const TITLES = [`Zarquon probe A`, `B, mentions it in the narrative`];
+        const NARRATIVE = `the day we found the zarquon, at last`;
+
+        for (const t of TITLES)
+            if (await titleCount(f, t)) {
+                const left = await deleteDownTo(page, f, t, 0);
+                console.log(`[pre-clean] "${t}" left over from before, now ${left}`);
+            }
+        if (await countProbeConcepts(f)) {
+            await wipeProbeConcepts(f);
+            await page.waitForTimeout(2000);
+            console.log("[pre-clean] removed probe tags left over from before");
+        }
+
+        console.log("=== a needle in the title, the narrative, and a tag ===");
+        for (const [i, title] of TITLES.entries()) {
+            await f.evaluate(() => (location.hash = "#/"));
+            await page.waitForTimeout(2500);
+            await f.getByLabel("Capture a memory").click();
+            await page.waitForTimeout(1500);
+            await f.getByPlaceholder("Optional").fill(title, { timeout: 60000 });
+            if (i === 1)
+                await f.getByPlaceholder("What happened?").fill(NARRATIVE);
+            if (i === 0) {
+                // The tag carries the needle too, so the results span two of
+                // §6.2's groups rather than one.
+                const box = f
+                    .locator('input[placeholder="tag, or portugal/sintra"]:visible')
+                    .last();
+                await box.click();
+                await box.pressSequentially(`probe-${NEEDLE}`, { delay: 30 });
+                await page.waitForTimeout(1500);
+                await box
+                    .locator(
+                        'xpath=ancestor::*[@data-part="root"][@data-scope="combobox"][1]'
+                    )
+                    .locator('[data-scope="combobox"][data-part="item"]')
+                    .filter({ hasText: /create/ })
+                    .first()
+                    .click();
+                await page.waitForTimeout(4000);
+            }
+            await f.getByRole("button", { name: "Save", exact: true }).click();
+            await page.waitForTimeout(4000);
+        }
+
+        console.log("=== search, grouped by type ===");
+        await f.evaluate(() => (location.hash = "#/search"));
+        await page.waitForTimeout(2500);
+        await f.locator('input[aria-label="Search"]').fill(NEEDLE);
+        await f.getByRole("button", { name: "Search", exact: true }).click();
+        let txt = "";
+        for (let i = 0; i < 10; i++) {
+            await page.waitForTimeout(2000);
+            txt = await f.evaluate(() => document.body.innerText);
+            if (/Memories · \d/.test(txt)) break;
+        }
+        console.log(
+            /Memories · 2/.test(txt)
+                ? "OK: both memories found — one by title, one by narrative"
+                : `FAIL: memories group reads:\n${txt.slice(0, 500)}`
+        );
+        console.log(
+            /Tags · 1/.test(txt)
+                ? "OK: the tag is a group of its own (§6.2)"
+                : `FAIL: no tag group:\n${txt.slice(0, 500)}`
+        );
+        console.log(
+            txt.includes("the day we found the zarquon")
+                ? "OK: the narrative hit shows what matched"
+                : "FAIL: no excerpt for the narrative hit"
+        );
+        await shot(page, "search-results");
+
+        console.log("=== the result set becomes a filter, and a selection ===");
+        await f
+            .getByRole("button", { name: /^Tag or group these 2 memories$/ })
+            .click();
+        await page.waitForTimeout(3000);
+        txt = await f.evaluate(() => document.body.innerText);
+        console.log(
+            /Showing 2 search results/.test(txt)
+                ? "OK: S-22 shows the results as a filter"
+                : `FAIL: browse reads:\n${txt.slice(0, 400)}`
+        );
+        console.log(
+            /2 selected/.test(txt)
+                ? "OK: and they arrive selected, one tap from a bulk action"
+                : `FAIL: nothing selected:\n${txt.slice(0, 400)}`
+        );
+        const rows = await f.evaluate(
+            () => document.querySelectorAll("li button .font-medium").length
+        );
+        console.log(
+            rows === 2
+                ? "OK: the archive is narrowed to exactly the two"
+                : `FAIL: ${rows} rows under a 2-result filter`
+        );
+
+        console.log("=== and the way out of it ===");
+        await f.getByRole("button", { name: "Show everything" }).click();
+        await page.waitForTimeout(2500);
+        const after = await f.evaluate(
+            () => document.querySelectorAll("li button .font-medium").length
+        );
+        console.log(
+            after > rows
+                ? `OK: dropping the facet brought the archive back (${after} rows)`
+                : `FAIL: still ${after} rows after Show everything`
+        );
+
+        for (const t of TITLES) await cleanUp(page, f, t, 0);
+        if (!process.env.KEEP) {
+            await wipeProbeConcepts(f);
+            await page.waitForTimeout(2000);
+            const left = await countProbeConcepts(f);
+            console.log(
+                left === 0
+                    ? "[cleanup] probe concepts back to 0"
+                    : `FAIL: ${left} probe concept(s) left in the store`
+            );
+        }
     } else if (step === "search-probe") {
         // B-08: what can free-text search (S-02) do with SPARQL alone, before
         // anyone builds an index? Read-only — this writes nothing.

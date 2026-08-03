@@ -70,6 +70,14 @@ export const browse = {
     isSelected(id: string): boolean {
         return selected.includes(id);
     },
+    /**
+     * Everything on screen at once — what makes a filter, and so a search
+     * result handed over as one (§6.2), a bulk action rather than forty taps.
+     */
+    selectAll(ids: string[]) {
+        selecting = true;
+        selected = [...new Set(ids)];
+    },
     toggle(id: string) {
         selected = selected.includes(id)
             ? selected.filter((s) => s !== id)

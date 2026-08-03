@@ -8,6 +8,7 @@
     import S22cMedia from "./screens/S22cMedia.svelte";
     import S32PlacePicker from "./screens/S32PlacePicker.svelte";
     import S01HereNow from "./screens/S01HereNow.svelte";
+    import S02Search from "./screens/S02Search.svelte";
     import S60People from "./screens/S60People.svelte";
     import S31PlaceDetail from "./screens/S31PlaceDetail.svelte";
     import S61Person from "./screens/S61Person.svelte";
@@ -31,6 +32,7 @@
         place: S31PlaceDetail,
         placepicker: S32PlacePicker,
         here: S01HereNow,
+        search: S02Search,
         people: S60People,
         heard: S40HeardAbout,
         recommendation: S41RecommendationEditor,

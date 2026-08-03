@@ -4,6 +4,7 @@ import {
     emptyFacets,
     matches,
     mediaMatching,
+    without,
     type Facets,
     type MatchContext,
 } from "./browseFilter";
@@ -290,5 +291,32 @@ describe("mediaMatching", () => {
             ctx({ media: all })
         );
         expect(shown.map((m) => m.doc)).toEqual(["pic1"]);
+    });
+});
+
+describe("the docs facet — S-02's results handed over as a filter", () => {
+    const a = memory("did:ng:o:a", { startDate: "2024-05-02" });
+    const b = memory("did:ng:o:b", { startDate: "2024-05-03" });
+
+    it("lets through exactly the named documents", () => {
+        const f = facets({ docs: ["did:ng:o:a"] });
+        expect(matches(a, f, ctx())).toBe(true);
+        expect(matches(b, f, ctx())).toBe(false);
+    });
+
+    it("is a facet like any other, so it can be blamed and dropped", () => {
+        const f = facets({ docs: ["did:ng:o:nothing"] });
+        expect(blame([a, b], f, ctx())).toEqual({ facet: "docs", without: 2 });
+        expect(matches(a, without(f, "docs"), ctx())).toBe(true);
+    });
+
+    it("combines with the others rather than overriding them", () => {
+        const f = facets({ docs: ["did:ng:o:a"], hasMedia: true });
+        expect(matches(a, f, ctx())).toBe(false);
+    });
+
+    it("an empty result set matches nothing, which is not the same as absent", () => {
+        expect(matches(a, facets({ docs: [] }), ctx())).toBe(false);
+        expect(matches(a, facets({}), ctx())).toBe(true);
     });
 });

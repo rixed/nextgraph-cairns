@@ -145,7 +145,16 @@
 </script>
 
 <div class="p-4 max-w-2xl mx-auto flex flex-col gap-4">
-    <h1 class="text-xl font-bold">Here & now</h1>
+    <div class="flex items-center gap-2">
+        <h1 class="text-xl font-bold">Here & now</h1>
+        <!-- §6.3: S-01 is where search is reached from. -->
+        <button
+            class="btn btn-ghost btn-sm ml-auto"
+            onclick={() => router.push({ name: "search" })}
+        >
+            🔍 Search
+        </button>
+    </div>
 
     {#if !ready}
         <div class="flex items-center gap-2 text-sm opacity-70">

@@ -12,6 +12,7 @@ export type RouteName =
     | "placepicker" // S-32, params: start/end = the caller's span, for the
     //                 coordinates its photographs already carry
     | "here" // S-01
+    | "search" // S-02
     | "heard" // S-40, params: focus = a recommendation to mark on arrival,
     //           set when S-20 sends the user here (§6.3)
     | "recommendation" // S-41, params: id = the one being edited, or
@@ -59,6 +60,8 @@ function toHash(r: Route): string {
             return "#/place";
         case "here":
             return "#/here";
+        case "search":
+            return "#/search";
         case "heard":
             return "#/heard";
         case "recommendation":
@@ -109,6 +112,9 @@ function fromHash(h: string): Route {
             ? { name: "place", params: { iri: decodeURIComponent(parts[1]) } }
             : { name: "placepicker" };
     if (parts[0] === "here") return { name: "here" };
+    // The needle is not in the hash: a search is a question being asked, not a
+    // place in the archive, and reloading onto an empty box is honest.
+    if (parts[0] === "search") return { name: "search" };
     // `#/heard` is the list; `#/heard/new` writes one; `#/heard/<iri>` edits
     // one. A referent handed in by S-31 is not in the hash, so reloading the
     // editor opens it with nothing chosen — which is a state it already has.

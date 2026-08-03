@@ -153,6 +153,39 @@ inside the list**, not a button beneath it, and **the selected chips go above th
 the listbox opens downward and covers anything below it, which made the original create button
 impossible to click at the only moment it existed.
 
+## Search, without an index
+
+S-02 is built on SPARQL alone (Appendix A, **B-08** stays open). The `search-probe`
+measurements decided the shape of it: constraining the query to memories cost about **3×** the
+unconstrained scan of every literal, because the planner does worse with the extra join — so
+`lib/search.ts` asks one query for *every* literal that matches, with each subject's types
+concatenated, and the classifying happens in the app. One round-trip, and §6.2's "results
+grouped by type" falls out of it.
+
+`LCASE` on both sides rather than `REGEX(…, "i")`: the probe measured them as equally fast,
+and a needle is user input — a regex would let a stray `(` turn a search into an error.
+
+**What is missing is ranking, not expressiveness**, so the screen says so at the bottom rather
+than pretending otherwise: substring matching, no stemming, and time for an order because
+there is no relevance to sort by. An archive is chronological; a made-up score would not be.
+
+### The result set as a filter
+
+§6.2: *"Any result set can be handed to S-22 as a filter, which is how a text search becomes a
+bulk tagging operation."* That is a `docs` facet on the browse filter — a list of memory
+documents. It is the one facet with no control in the filter bar, because the other five
+describe a property of a memory and this one names memories; the shell shows a banner with the
+count and a way out instead. It is a facet like any other underneath, so `blame` can name it
+when a filter yields nothing, and `drop` removes it.
+
+The hand-off also selects the memories (`browse.selectAll`), because the point of it is the
+bulk action and selecting forty rows by hand is a poor way to get there. Nothing is written:
+the bar still asks what to do with them. `Select all N` is now in the selection bar too, which
+makes any filter — not just a search — one tap from a bulk action.
+
+`make search` drives the whole path: a needle in a title, in a narrative and in a tag; the
+groups; the hand-off; and the way back out. Self-cleaning.
+
 ## Sibling memories
 
 S-20's last sections (§6.2): the other memories at the same place, with the same people,

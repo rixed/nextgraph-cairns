@@ -275,6 +275,21 @@
         {/if}
     </div>
 
+    {#if facets.docs}
+        <!-- The one facet with no control in the filter bar: it names memories
+             rather than describing them, so it says what it is and offers the
+             way out (§6.2, S-02 → S-22). -->
+        <div class="alert alert-info py-2 mb-2 text-sm flex">
+            <span>Showing {facets.docs.length} search results.</span>
+            <button
+                class="btn btn-xs ml-auto"
+                onclick={() => browse.drop("docs")}
+            >
+                Show everything
+            </button>
+        </div>
+    {/if}
+
     {#if showFilter}
         <div class="bg-base-200 rounded-box p-3 mb-3 flex flex-col gap-3">
             <div class="flex flex-wrap gap-4 items-start">
@@ -430,6 +445,15 @@
             <span class="text-sm font-medium">
                 {selected.length} selected
             </span>
+            {#if selected.length < filtered.length}
+                <button
+                    class="btn btn-xs btn-ghost"
+                    onclick={() =>
+                        browse.selectAll(filtered.map((m) => m["@graph"]))}
+                >
+                    Select all {filtered.length}
+                </button>
+            {/if}
             {#if projection === "media"}
                 <button
                     class="btn btn-xs"

@@ -33,6 +33,14 @@ export interface Facets {
      */
     person?: string;
     hasMedia: boolean;
+    /**
+     * An explicit set of memory documents, which is how S-02 hands its results
+     * to the browse shell (§6.2). Not a facet the filter bar offers: the other
+     * five describe a property of a memory, this one names memories, and it
+     * exists so that a text search — which browse cannot express — can still
+     * become a bulk tagging operation.
+     */
+    docs?: string[];
 }
 
 /** Everything the predicate needs that is not the memory itself. */
@@ -49,7 +57,13 @@ export const emptyFacets = (): Facets => ({
     hasMedia: false,
 });
 
-export type FacetName = "date" | "tags" | "place" | "person" | "hasMedia";
+export type FacetName =
+    | "date"
+    | "tags"
+    | "place"
+    | "person"
+    | "hasMedia"
+    | "docs";
 
 export function activeFacets(f: Facets): FacetName[] {
     const out: FacetName[] = [];
@@ -58,6 +72,7 @@ export function activeFacets(f: Facets): FacetName[] {
     if (f.place) out.push("place");
     if (f.person) out.push("person");
     if (f.hasMedia) out.push("hasMedia");
+    if (f.docs) out.push("docs");
     return out;
 }
 
@@ -67,6 +82,7 @@ export const FACET_LABELS: Record<FacetName, string> = {
     place: "the place",
     person: "who was there",
     hasMedia: "has photographs",
+    docs: "the search results",
 };
 
 /** The same facet, dropped — used by the filter bar and by `blame`. */
@@ -76,6 +92,7 @@ export function without(f: Facets, facet: FacetName): Facets {
     else if (facet === "tags") relaxed.tags = [];
     else if (facet === "place") relaxed.place = undefined;
     else if (facet === "person") relaxed.person = undefined;
+    else if (facet === "docs") relaxed.docs = undefined;
     else relaxed.hasMedia = false;
     return relaxed;
 }
@@ -107,6 +124,7 @@ export function mediaOf(m: Memory, ctx: MatchContext): Media[] {
 
 /** Does this memory pass the filter as it stands? */
 export function matches(m: Memory, f: Facets, ctx: MatchContext): boolean {
+    if (f.docs && !f.docs.includes(m["@graph"])) return false;
     const window = filterWindow(f);
     if (window) {
         const start = parsePrecisionDate(m.startDate);
