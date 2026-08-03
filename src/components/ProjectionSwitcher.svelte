@@ -4,8 +4,6 @@
     // than a menu of features. The filter, the selection and each projection's
     // scroll position live in lib/browse.svelte.ts and survive the switch.
     //
-    // Space is not built yet and says so, since the app states absence rather
-    // than hiding it (§8).
     import { router } from "../lib/router.svelte";
     import type { Projection } from "../lib/browse.svelte";
 
