@@ -3,9 +3,12 @@
     // rule. The default projection, rendered inside the S-22 shell, which owns
     // the filter and the selection this reads.
     //
-    // Deferred: the grouping suggestions of §6.2 — clusters in time and space
-    // offered for tagging, each dismissal remembered (§3.9). The rejections
-    // document is already there for them; the clustering is not.
+    // It also offers the grouping suggestions of §6.2 — runs of memories that
+    // look like one episode, with one tap to tag them or write a memory about
+    // them. Both actions belong to the shell (§4.4), so a tap here selects the
+    // run and asks the shell to do what it already does with a selection.
+    //
+    // Dismissal (§3.9) is deliberately not built yet; see lib/grouping.ts.
     import { useShape } from "@ng-org/orm/svelte";
     import { OrmSubscription, normalizeScope } from "@ng-org/orm";
     import { MemoryShapeType } from "../shapes/orm/memoryShape.shapeTypes";
@@ -28,6 +31,19 @@
     import { coverFor, type Media } from "../lib/media";
     import { isMediaSuppressed } from "../lib/rejections.svelte";
     import { browse, matches, type MatchContext } from "../lib/browse.svelte";
+    import {
+        suggestions,
+        frequentPlace,
+        type Cluster,
+    } from "../lib/grouping";
+    import { placeLabel, findPlace } from "../lib/places";
+
+    let {
+        act,
+    }: {
+        /** Hands a run to the shell's bulk actions (§4.4). */
+        act?: (docs: string[], what: "tag" | "write") => void;
+    } = $props();
 
     const memories = useShape(MemoryShapeType, "did:ng:i");
     const mediaFeed = useAllMedia();
@@ -78,6 +94,50 @@
         return m;
     });
 
+    /**
+     * The episodes worth proposing (§6.2). Over the filtered rows, so a
+     * narrowed archive suggests within what is on screen; home is read from the
+     * whole archive, because whether a run is ordinary is not a question the
+     * filter can answer.
+     */
+    const home = $derived(
+        frequentPlace([...memories] as unknown as Memory[], places.all)
+    );
+    const clusters = $derived<Cluster[]>(
+        browse.selecting
+            ? []
+            : suggestions(
+                  rows.map((r) => r.m),
+                  { places: places.all, home }
+              )
+    );
+
+    /** "4 memories, 2–4 May, around Sintra" — what the offer is about. */
+    function describe(c: Cluster): string {
+        const from = new Date(c.span.earliest);
+        const to = new Date(c.span.latest);
+        const day = new Intl.DateTimeFormat(undefined, {
+            day: "numeric",
+            month: "short",
+        });
+        // The year once, on the end of the range: the card sits above a list
+        // whose headers are years, and "Apr 6 – Apr 8" alone says which decade
+        // to nobody.
+        const full = new Intl.DateTimeFormat(undefined, {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+        });
+        const range =
+            day.format(from) === day.format(to)
+                ? full.format(from)
+                : `${day.format(from)} – ${full.format(to)}`;
+        const where = c.place
+            ? ` around ${placeLabel(findPlace(places.all, c.place), c.place)}`
+            : "";
+        return `${c.members.length} memories, ${range}${where}`;
+    }
+
     /** In selection mode a row is picked rather than opened (§4.4). */
     const activate = (r: Row) => {
         const doc = r.m["@graph"];
@@ -114,6 +174,49 @@
             </button>
         </div>
     {:else}
+        {#if act && clusters.length}
+            <!-- Above the archive, not inside it: a suggestion is a question
+                 about the list, and one that can be ignored by scrolling. -->
+            <ul class="flex flex-col gap-2 mb-3">
+                {#each clusters as c (c.members[0]["@graph"])}
+                    <li
+                        class="bg-base-200 rounded-box p-2 flex flex-wrap gap-2 items-center"
+                    >
+                        <span class="text-sm">
+                            {describe(c)}
+                            <span class="opacity-60">— one episode?</span>
+                        </span>
+                        <span class="flex gap-2 ml-auto">
+                            <button
+                                class="btn btn-xs"
+                                onclick={() =>
+                                    act!(
+                                        c.members.map(
+                                            (m) => m["@graph"] as string
+                                        ),
+                                        "tag"
+                                    )}
+                            >
+                                Tag these
+                            </button>
+                            <button
+                                class="btn btn-xs"
+                                onclick={() =>
+                                    act!(
+                                        c.members.map(
+                                            (m) => m["@graph"] as string
+                                        ),
+                                        "write"
+                                    )}
+                            >
+                                Write a memory about these
+                            </button>
+                        </span>
+                    </li>
+                {/each}
+            </ul>
+        {/if}
+
         {#each groups as group (group.header)}
             <h2
                 class="sticky top-0 bg-base-100 z-[5] text-sm font-semibold opacity-70 py-1 border-b"

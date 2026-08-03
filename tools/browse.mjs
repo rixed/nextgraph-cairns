@@ -235,6 +235,36 @@ async function deleteDownTo(page, frame, title, keep) {
     throw new Error(`could not reduce "${title}" to ${keep}`);
 }
 
+/**
+ * Concepts a scenario minted for itself, by convention labelled `probe-…`.
+ * Counted and removed by SPARQL rather than through the app, because the app
+ * may only append to a vocabulary (§5) and deliberately offers no way back.
+ */
+function countProbeConcepts(frame) {
+    return frame.evaluate(() =>
+        window
+            .spikeSelect(
+                `PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+                 SELECT ?c WHERE { GRAPH ?g {
+                    ?c a skos:Concept ; skos:prefLabel ?l .
+                    FILTER(STRSTARTS(?l, "probe-")) } }`
+            )
+            .then((r) => r.length)
+    );
+}
+
+function wipeProbeConcepts(frame) {
+    return frame.evaluate(() =>
+        window.spikeUpdate(
+            `PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+             DELETE { GRAPH ?g { ?c ?p ?o } } WHERE { GRAPH ?g {
+                ?c a skos:Concept ; skos:prefLabel ?l ; ?p ?o .
+                FILTER(STRSTARTS(?l, "probe-")) } }`,
+            undefined
+        )
+    );
+}
+
 /** KEEP=1 leaves what a run created, for looking at it by hand afterwards. */
 async function cleanUp(page, frame, title, keep) {
     if (process.env.KEEP) {
@@ -1654,27 +1684,8 @@ try {
         const f = await loginAndGetFrame(page);
         await settle(f);
 
-        const countProbes = () =>
-            f.evaluate(() =>
-                window
-                    .spikeSelect(
-                        `PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-                         SELECT ?c WHERE { GRAPH ?g {
-                            ?c a skos:Concept ; skos:prefLabel ?l .
-                            FILTER(STRSTARTS(?l, "probe-")) } }`
-                    )
-                    .then((r) => r.length)
-            );
-        const wipeProbes = () =>
-            f.evaluate(() =>
-                window.spikeUpdate(
-                    `PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-                     DELETE { GRAPH ?g { ?c ?p ?o } } WHERE { GRAPH ?g {
-                        ?c a skos:Concept ; skos:prefLabel ?l ; ?p ?o .
-                        FILTER(STRSTARTS(?l, "probe-")) } }`,
-                    undefined
-                )
-            );
+        const countProbes = () => countProbeConcepts(f);
+        const wipeProbes = () => wipeProbeConcepts(f);
         if (await countProbes()) {
             await wipeProbes();
             await page.waitForTimeout(2000);
@@ -1775,27 +1786,8 @@ try {
         const WHO = "Sibling Probe Companion";
         const TAG = "probe-sib";
 
-        const countProbes = () =>
-            f.evaluate(() =>
-                window
-                    .spikeSelect(
-                        `PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-                         SELECT ?c WHERE { GRAPH ?g {
-                            ?c a skos:Concept ; skos:prefLabel ?l .
-                            FILTER(STRSTARTS(?l, "probe-")) } }`
-                    )
-                    .then((r) => r.length)
-            );
-        const wipeProbes = () =>
-            f.evaluate(() =>
-                window.spikeUpdate(
-                    `PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-                     DELETE { GRAPH ?g { ?c ?p ?o } } WHERE { GRAPH ?g {
-                        ?c a skos:Concept ; skos:prefLabel ?l ; ?p ?o .
-                        FILTER(STRSTARTS(?l, "probe-")) } }`,
-                    undefined
-                )
-            );
+        const countProbes = () => countProbeConcepts(f);
+        const wipeProbes = () => wipeProbeConcepts(f);
         // As m3 does: residue from a crashed run would make the counts below
         // describe memories this run never created.
         for (const t of TITLES)
@@ -1941,6 +1933,156 @@ try {
             await wipeProbes();
             await page.waitForTimeout(2000);
             const left = await countProbes();
+            console.log(
+                left === 0
+                    ? "[cleanup] probe concepts back to 0"
+                    : `FAIL: ${left} probe concept(s) left in the store`
+            );
+        }
+    } else if (step === "grouping") {
+        // S-22a's grouping suggestions (§6.2): three memories on consecutive
+        // days are offered as one episode, and either action hands the run to
+        // the bulk bar of §4.4. Self-cleaning.
+        const f = await loginAndGetFrame(page);
+        await settle(f);
+
+        const TITLES = ["Cluster probe 1", "Cluster probe 2", "Cluster probe 3"];
+        // April 1998: far from anything the fixtures write, so the suggestion
+        // is about these three memories and nothing else.
+        const DAYS = ["1998-04-06", "1998-04-07", "1998-04-08"];
+
+        for (const t of TITLES)
+            if (await titleCount(f, t)) {
+                const left = await deleteDownTo(page, f, t, 0);
+                console.log(`[pre-clean] "${t}" left over from before, now ${left}`);
+            }
+        // The last block mints `probe-cluster`, and a concept that already
+        // exists is never offered for creation again (§3.5).
+        if (await countProbeConcepts(f)) {
+            await wipeProbeConcepts(f);
+            await page.waitForTimeout(2000);
+            console.log("[pre-clean] removed probe tags left over from before");
+        }
+        const intruders = await f.evaluate(() =>
+            window
+                .spikeSelect(
+                    `PREFIX schema: <https://schema.org/>
+                     PREFIX app: <did:ng:z:cairns/>
+                     SELECT ?m WHERE { GRAPH ?g {
+                        ?m a app:Memory ; schema:startDate ?d .
+                        FILTER(STRSTARTS(STR(?d), "1998-04")) } }`
+                )
+                .then((r) => r.length)
+        );
+        console.log(
+            intruders === 0
+                ? "[window] April 1998 is empty, so the counts below are ours"
+                : `FAIL: ${intruders} other memories already in the window`
+        );
+
+        console.log("=== three memories on consecutive days ===");
+        for (const [i, title] of TITLES.entries()) {
+            await f.evaluate(() => (location.hash = "#/"));
+            await page.waitForTimeout(2500);
+            await f.getByLabel("Capture a memory").click();
+            await page.waitForTimeout(1500);
+            await f.getByPlaceholder("Optional").fill(title, { timeout: 60000 });
+            await f.locator('input[type="date"]').first().fill(DAYS[i]);
+            await page.waitForTimeout(500);
+            await f.getByRole("button", { name: "Save", exact: true }).click();
+            await page.waitForTimeout(4000);
+        }
+
+        console.log("=== the archive offers them as one episode ===");
+        await f.evaluate(() => (location.hash = "#/"));
+        let txt = "";
+        for (let i = 0; i < 12; i++) {
+            await page.waitForTimeout(2500);
+            txt = await f.evaluate(() => document.body.innerText);
+            if (/one episode\?/.test(txt)) break;
+        }
+        const offer = txt.match(/(\d+) memories, ([^\n]*?)— one episode\?/);
+        console.log(
+            offer && offer[1] === "3"
+                ? `OK: a suggestion, "${offer[0].trim()}"`
+                : `FAIL: no suggestion for the run:\n${txt.slice(0, 600)}`
+        );
+        await shot(page, "grouping-suggestion");
+
+        console.log("=== one tap selects the run for tagging ===");
+        await f.getByRole("button", { name: "Tag these" }).first().click();
+        await page.waitForTimeout(1500);
+        txt = await f.evaluate(() => document.body.innerText);
+        console.log(
+            /3 selected/.test(txt)
+                ? "OK: the run became the selection, in the bar of §4.4"
+                : `FAIL: the selection bar reads:\n${txt.slice(0, 300)}`
+        );
+        console.log(
+            (await f
+                .locator('input[placeholder="tag, or portugal/sintra"]:visible')
+                .count()) > 0
+                ? "OK: the tag picker is open, one tap in"
+                : "FAIL: no tag picker after Tag these"
+        );
+        // Nothing has been written: the suggestion is still only a proposal.
+        await f.getByRole("button", { name: "Done", exact: true }).click();
+        await page.waitForTimeout(1500);
+
+        console.log("=== the other tap writes a memory about them ===");
+        await f
+            .getByRole("button", { name: "Write a memory about these" })
+            .first()
+            .click();
+        await page.waitForTimeout(3000);
+        const dates = await f
+            .locator('input[type="date"]:visible')
+            .evaluateAll((els) => els.map((e) => e.value));
+        console.log(
+            dates.includes(DAYS[0]) && dates.includes(DAYS[2])
+                ? `OK: the editor opened on the derived span ${DAYS[0]} → ${DAYS[2]}`
+                : `FAIL: the editor's dates are ${JSON.stringify(dates)}`
+        );
+        // Cancel, not Save: the point was the hand-off, and a fourth memory
+        // would be this run's litter.
+        await f.getByRole("button", { name: "Cancel", exact: true }).click();
+        await page.waitForTimeout(2000);
+
+        console.log("=== a tagged run is not proposed again ===");
+        // The suppression that stands in for dismissal until §3.9 is built.
+        await f.getByRole("button", { name: "Tag these" }).first().click();
+        await page.waitForTimeout(1500);
+        const box = f
+            .locator('input[placeholder="tag, or portugal/sintra"]:visible')
+            .last();
+        await box.click();
+        await box.pressSequentially("probe-cluster", { delay: 30 });
+        await page.waitForTimeout(1500);
+        await box
+            .locator(
+                'xpath=ancestor::*[@data-part="root"][@data-scope="combobox"][1]'
+            )
+            .locator('[data-scope="combobox"][data-part="item"]')
+            .filter({ hasText: /create/ })
+            .first()
+            .click();
+        await page.waitForTimeout(4000);
+        // Applying the tags leaves selection mode by itself, so there is no
+        // Done to click here — unlike the dry run above, which stayed in it.
+        await f.getByRole("button", { name: /^Add to 3$/ }).click();
+        await page.waitForTimeout(6000);
+        txt = await f.evaluate(() => document.body.innerText);
+        console.log(
+            !/one episode\?/.test(txt)
+                ? "OK: once they share a tag, the offer is gone"
+                : `FAIL: still offered:\n${txt.slice(0, 400)}`
+        );
+
+        for (const t of TITLES) await cleanUp(page, f, t, 0);
+        if (!process.env.KEEP) {
+            await wipeProbeConcepts(f);
+            await page.waitForTimeout(2000);
+            const left = await countProbeConcepts(f);
             console.log(
                 left === 0
                     ? "[cleanup] probe concepts back to 0"

@@ -239,6 +239,20 @@
         browse.stopSelecting();
         router.push({ name: "editor" });
     }
+
+    /**
+     * A grouping suggestion accepted (§6.2): the run becomes the selection, and
+     * from there it is an ordinary bulk action — the same code path and the
+     * same bar as picking those memories by hand. Nothing is written until the
+     * user finishes the action they chose, so accepting a suggestion is still
+     * only a proposal.
+     */
+    function actOnCluster(docs: string[], what: "tag" | "write") {
+        browse.startSelecting();
+        for (const d of docs) browse.toggle(d);
+        if (what === "tag") tagging = true;
+        else writeAboutMemories();
+    }
 </script>
 
 <div class="p-4 max-w-4xl mx-auto">
@@ -520,7 +534,7 @@
             </button>
         </div>
     {:else if projection === "time"}
-        <S22aTime />
+        <S22aTime act={actOnCluster} />
     {:else if projection === "media"}
         <S22cMedia />
     {:else}

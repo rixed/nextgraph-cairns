@@ -173,6 +173,35 @@ match exactly, not up the hierarchy**, because otherwise every memory in Portuga
 sibling of every other. People are the exception that must be broad: they match on `personKey`,
 so a companion is one person whether or not their bare names have been promoted (§3.3).
 
+## Grouping suggestions
+
+S-22a offers runs of memories that look like one episode (§6.2). Specs §10.2 leaves the
+clustering rule open — "gap threshold, distance from a frequent place, minimum member count" —
+so `lib/grouping.ts` answers it with a first cut, and keeps the three numbers together at the
+top of the file so that revisiting the question means changing them, not finding them:
+
+| | | why |
+|---|---|---|
+| `GAP_HOURS` | 36 | at most one empty day inside an episode |
+| `RADIUS_KM` | 50 | how far the next memory may be from the *previous* one, not the first — a trip down a coast is one episode though its ends are far apart |
+| `MIN_MEMBERS` | 3 | two memories are a pair |
+| `HOME_RADIUS_KM` | 25 | around the frequent place, a run of days is ordinary life |
+| `HOME_MIN_MEMORIES` | 3 | below this the archive has no centre — and a nomadic archive, which this app is for, may have none at all |
+
+A memory with no location joins on time alone: absence is not evidence of being somewhere
+else (§1.3.15), and refusing it would make the suggestions depend on how much of the archive
+happens to have coordinates.
+
+**Dismissal (§3.9) is deliberately not built.** The workflow is not settled, and a rejection
+is durable — writing one before the shape of the offer is agreed would leave permanent records
+of a question we may end up asking differently. What stands in for it: a run whose members
+already share a tag or a public event is never proposed, because the user has already said
+what it is. Accepting a suggestion is also still only a proposal — it selects the run and
+hands it to the bulk bar of §4.4, and nothing is written until the user finishes the action.
+
+`make grouping` drives the whole path — the offer, both actions, and the offer disappearing
+once the run is tagged — in an empty window of April 1998, and cleans up after itself.
+
 ### Two traps in the driver, worth knowing before writing the next step
 
 **`location.hash = "#/new"` when the hash is already `#/new` fires no `hashchange`** — so the
