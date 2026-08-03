@@ -34,6 +34,7 @@ app:RecommendationShape EXTRA a {
   # What they said about it.
   schema:description xsd:string ? ;
   dcterms:subject IRI * ;
-  # The memory that fulfilled it, set when one is captured there (§6.2, S-21).
-  schema:about IRI ? ;
+  # No "fulfilled" property. A recommendation is fulfilled when a memory points
+  # at it with prov:wasInfluencedBy (§4.1) — derived, never stored, and written
+  # in the memory's own document rather than into this shared list.
 }

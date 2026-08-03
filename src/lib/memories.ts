@@ -41,6 +41,14 @@ export interface MemoryFields {
      * into this memory's own document.
      */
     attendees?: AttendeeDraft[];
+    /** Public events this memory is about (§4.3), 0..N. */
+    events?: string[];
+    /**
+     * The recommendations that prompted it (§4.1). This is where fulfilment
+     * lives: the memory is the later fact, so it carries the link, and nothing
+     * is ever written into the recommendations list to say you went.
+     */
+    prompts?: string[];
 }
 
 function fieldTriples(subject: string, f: MemoryFields): string {
@@ -64,6 +72,10 @@ function fieldTriples(subject: string, f: MemoryFields): string {
         t.push(`<${subject}> dcterms:subject <${tag}>`);
     for (const m of f.media ?? [])
         t.push(`<${subject}> schema:subjectOf <${m}>`);
+    for (const e of f.events ?? [])
+        t.push(`<${subject}> schema:about <${e}>`);
+    for (const r of f.prompts ?? [])
+        t.push(`<${subject}> prov:wasInfluencedBy <${r}>`);
     t.push(...locationTriples(subject, f.locations ?? []));
     t.push(...attendeeTriples(subject, f.attendees ?? []));
     return t.join(" .\n") + " .";
@@ -98,6 +110,8 @@ const EDITABLE = [
     "schema:subjectOf",
     "schema:location",
     "schema:attendee",
+    "schema:about",
+    "prov:wasInfluencedBy",
 ];
 
 /** Replace all editable fields of a memory with the given values. */

@@ -46,8 +46,4 @@ export interface Recommendation {
    * Original IRI: http://purl.org/dc/terms/subject
    */
   subject?: Set<IRI>;
-  /**
-   * Original IRI: https://schema.org/about
-   */
-  about?: IRI;
 }

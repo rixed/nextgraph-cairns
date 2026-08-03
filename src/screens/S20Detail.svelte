@@ -27,7 +27,11 @@
         personLabel,
         isBareName,
     } from "../lib/people";
-    import { useRecommendations } from "../lib/recommendations";
+    import {
+        useRecommendations,
+        type Recommendation,
+    } from "../lib/recommendations";
+    import { useEvents, findEvent } from "../lib/events.svelte";
     import { router } from "../lib/router.svelte";
     import TagChips from "../components/TagChips.svelte";
     import MediaStrip from "../components/MediaStrip.svelte";
@@ -100,13 +104,32 @@
     const traces = $derived(span ? tracksDuring(tracks.all, span) : []);
 
     /**
-     * What capturing this memory fulfilled (§6.2, S-21). Not an overlap join
-     * like the two above: this is a fact somebody recorded, pointing here.
+     * "Recommendations that prompted this memory, with the note and who gave
+     * it" (§6.2). Not an overlap join like the two above and not an inference
+     * at all: the memory says so itself, in its own document (§4.1).
+     *
+     * A prompt whose recommendation has since been forgotten is shown as an
+     * unresolved reference rather than dropped — one rendering path for
+     * absence (§1.3.15), the same as a place that has not synced.
      */
     const recs = useRecommendations();
-    const closes = $derived(recs.all.filter((r) => r.fulfilledBy === doc));
+    const prompts = $derived(
+        [...(memory?.wasInfluencedBy ?? [])].map((id) => ({
+            id,
+            rec: recs.all.find((r) => r.id === id),
+        }))
+    );
 
-    function whoTold(r: (typeof closes)[number]): string | undefined {
+    /** The public events this memory is about (§4.3), 0..N. */
+    const events = useEvents();
+    const about = $derived(
+        [...(memory?.about ?? [])].map((id) => ({
+            id,
+            event: findEvent(events.all, id),
+        }))
+    );
+
+    function whoTold(r: Recommendation): string | undefined {
         if (r.attributedTo)
             return personLabel(
                 findPerson(people.all, r.attributedTo),
@@ -221,27 +244,51 @@
 
         <MediaStrip memory={memory as unknown as Memory} />
 
-        {#if closes.length}
-            <!-- The other half of §6.2's fulfilment rule, said where the user
-                 will see it: capturing here marked something as visited, and
-                 that would otherwise happen silently in another document. -->
+        {#if prompts.length}
             <div class="flex flex-col gap-1">
                 <h2 class="text-xs font-semibold opacity-60">
-                    You had been told about this
+                    You came here because
                 </h2>
-                {#each closes as r (r.id)}
-                    <button
-                        class="text-xs text-left link link-hover"
-                        onclick={() =>
-                            router.push({
-                                name: "recommendation",
-                                params: { id: r.id },
-                            })}
-                    >
-                        ✓ {whoTold(r) ?? "Somebody"} told you about this{r.note
-                            ? ` — ${r.note}`
-                            : ""}
-                    </button>
+                {#each prompts as p (p.id)}
+                    {#if p.rec}
+                        <button
+                            class="text-xs text-left link link-hover"
+                            onclick={() =>
+                                router.push({
+                                    name: "heard",
+                                    params: { focus: p.id },
+                                })}
+                        >
+                            {whoTold(p.rec) ?? "Somebody"} told you about this{p
+                                .rec.note
+                                ? ` — ${p.rec.note}`
+                                : ""}
+                        </button>
+                    {:else}
+                        <span class="text-xs opacity-60">
+                            a recommendation that is no longer here
+                        </span>
+                    {/if}
+                {/each}
+            </div>
+        {/if}
+
+        {#if about.length}
+            <div class="flex flex-col gap-1">
+                <h2 class="text-xs font-semibold opacity-60">
+                    {about.length === 1 ? "This was" : "This was part of"}
+                </h2>
+                {#each about as a (a.id)}
+                    <!-- Inline, not a link: S-34 does not exist yet, and §4.3's
+                         cross-year grouping needs it to be worth opening. -->
+                    <span class="text-xs">
+                        📅 {a.event?.name ?? "an event not synced here yet"}
+                        {#if a.event?.start}
+                            <span class="opacity-60">
+                                · {formatPrecisionDate(a.event.start)}
+                            </span>
+                        {/if}
+                    </span>
                 {/each}
             </div>
         {/if}

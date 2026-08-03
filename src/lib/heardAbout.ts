@@ -86,6 +86,12 @@ function latestTold(a: Rankable, b: Rankable): number {
 
 export interface ResolvedRecommendation extends Rankable {
     rec: Recommendation;
+    /**
+     * The memories that say this prompted them (§4.1). Derived from their
+     * `prov:wasInfluencedBy`, never stored here — empty means you have not
+     * been, or have not said so.
+     */
+    fulfilledBy: string[];
     /** Set when the referent is an event rather than a place (§4.2). */
     event?: PublicEvent;
     /** Where it is: the referent itself, or the event's location. */
@@ -99,6 +105,8 @@ export function resolve(
     events: PublicEvent[],
     places: Place[],
     position: Position | undefined,
+    /** Recommendation IRI → the memories prompted by it (see `fulfilments`). */
+    fulfilled: Map<string, string[]> = new Map(),
     now = Date.now()
 ): ResolvedRecommendation[] {
     return recs.map((rec) => {
@@ -122,6 +130,7 @@ export function resolve(
                     : undefined,
             toldMs: rec.told ? interval(rec.told).earliest : undefined,
             urgency: urgencyOf({ span }, now),
+            fulfilledBy: fulfilled.get(rec.id) ?? [],
         };
     });
 }
@@ -145,7 +154,7 @@ export function bestMoment(
     return sortHeardAbout(
         rows.filter(
             (r) =>
-                !r.rec.fulfilledBy &&
+                !r.fulfilledBy.length &&
                 r.span &&
                 r.span.latest >= now &&
                 r.span.earliest <= horizon &&
@@ -170,7 +179,7 @@ export function nearbyRecommended(
     return sortHeardAbout(
         rows.filter(
             (r) =>
-                !r.rec.fulfilledBy &&
+                !r.fulfilledBy.length &&
                 !claimed.has(r.rec.id) &&
                 // Recomputed rather than read off the row: `urgency` was
                 // decided whenever the row was resolved, and a card that is

@@ -31,10 +31,8 @@
         type AttendeeDraft,
     } from "../lib/people";
     import { createMemory, updateMemory } from "../lib/memories";
-    import {
-        useRecommendations,
-        fulfilRecommendations,
-    } from "../lib/recommendations";
+    import { useRecommendations, promptedBy } from "../lib/recommendations";
+    import { useEvents } from "../lib/events.svelte";
     import { browse } from "../lib/browse.svelte";
     import { router } from "../lib/router.svelte";
     import PrecisionDatePicker from "../components/PrecisionDatePicker.svelte";
@@ -60,6 +58,10 @@
     let media = $state<string[]>([]);
     let locations = $state<LocationDraft[]>([]);
     let attendees = $state<AttendeeDraft[]>([]);
+    /** Public events this memory is about (§4.3), 0..N. */
+    let events = $state<string[]>([]);
+    /** Recommendations the user has said prompted this memory (§4.1). */
+    let prompts = $state<string[]>([]);
 
     // "Write a memory about these" (§4.4) hands over a derived span, the tag
     // the selection shares and the places it names. Everything is a suggestion:
@@ -108,6 +110,8 @@
         attendees = [...(m.attendee ?? [])].map((iri) =>
             attendeeDraftOf(iri, people.all, memoryDocs)
         );
+        events = [...(m.about ?? [])];
+        prompts = [...(m.wasInfluencedBy ?? [])];
         initialized = true;
     });
 
@@ -148,31 +152,48 @@
     };
 
     const recs = useRecommendations();
+    const publicEvents = useEvents();
 
     /**
-     * §6.2: "capturing at a recommended place or event marks that
-     * recommendation fulfilled". After the memory is saved, not before — a
-     * recommendation must never be marked as visited by a memory that failed
-     * to write.
+     * §6.2: "capturing at a recommended place or event offers to link that
+     * recommendation to the memory". An offer, and nothing more — whether you
+     * went because Ana said so is a claim about your own reasons, and the app
+     * does not get to make it on your behalf.
      *
-     * Only identified places count. A dropped pin cannot fulfil anything,
-     * because nothing can point at it (§1.3) — including a recommendation.
-     * Editing counts as much as capturing: adding the place a week later is
-     * the same claim about having been there.
+     * Only identified places and public events count as referents. A dropped
+     * pin is not one: nothing can point at it (§1.3), a recommendation least
+     * of all.
+     *
+     * Declining is not remembered. §3.9's list of stored rejections does not
+     * include this one, so the offer comes back the next time this memory is
+     * edited — which is the right cost while the list is short, and the wrong
+     * one if it ever gets long.
      */
-    async function fulfil(doc: string) {
-        const referents = locations
-            .filter((l) => l.kind === "place")
-            .map((l) => l.iri);
-        if (!referents.length) return;
-        try {
-            await fulfilRecommendations(recs.all, referents, doc);
-        } catch (e) {
-            // The memory is saved; a missed mark is worth a line in the console
-            // and nothing more. Losing what was written would not be.
-            console.error("fulfilment", e);
-        }
-    }
+    const offered = $derived(
+        promptedBy(recs.all, [
+            ...locations.filter((l) => l.kind === "place").map((l) => l.iri),
+            ...events,
+        ]).filter((r) => !prompts.includes(r.id))
+    );
+
+    const togglePrompt = (id: string) => {
+        prompts = prompts.includes(id)
+            ? prompts.filter((p) => p !== id)
+            : [...prompts, id];
+    };
+
+    const toggleEvent = (id: string) => {
+        events = events.includes(id)
+            ? events.filter((e) => e !== id)
+            : [...events, id];
+    };
+
+    /** Events sorted so the ones this memory could plausibly be about lead. */
+    const eventChoices = $derived(
+        publicEvents.all
+            .filter((e) => e.name)
+            .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""))
+    );
 
     async function save() {
         saving = true;
@@ -190,14 +211,14 @@
                 // and a proxy is not something to hand to a query builder.
                 locations: locations.map((l) => ({ ...l })),
                 attendees: attendees.map((a) => ({ ...a })),
+                events: [...events],
+                prompts: [...prompts],
             };
             if (editedDoc) {
                 await updateMemory(editedDoc, fields);
-                await fulfil(editedDoc);
                 router.pop();
             } else {
                 const doc = await createMemory(fields);
-                await fulfil(doc);
                 router.pop();
                 router.push({ name: "detail", params: { doc } });
             }
@@ -312,6 +333,86 @@
             {memoryDocs}
             onchange={(next) => (attendees = next)}
         />
+
+        {#if eventChoices.length}
+            <!-- Public events (§4.3), 0..N. Conditional like every foreign
+                 shape (§5): a store nobody has published events into does not
+                 advertise the field. -->
+            <div class="flex flex-col gap-1">
+                <div class="label"><span class="label-text">Part of</span></div>
+                {#if events.length}
+                    <ul class="flex flex-wrap gap-1 mb-1">
+                        {#each events as id (id)}
+                            {@const e = eventChoices.find((x) => x.id === id)}
+                            <li>
+                                <span class="badge badge-ghost gap-1">
+                                    📅 {e?.name ?? "an event"}
+                                    <button
+                                        aria-label="Remove this event"
+                                        onclick={() => toggleEvent(id)}
+                                    >
+                                        ✕
+                                    </button>
+                                </span>
+                            </li>
+                        {/each}
+                    </ul>
+                {/if}
+                <select
+                    class="select select-bordered select-sm self-start"
+                    aria-label="A public event"
+                    value=""
+                    onchange={(e) => {
+                        const v = (e.target as HTMLSelectElement).value;
+                        if (v) toggleEvent(v);
+                        (e.target as HTMLSelectElement).value = "";
+                    }}
+                >
+                    <option value="">+ a public event…</option>
+                    {#each eventChoices.filter((e) => !events.includes(e.id)) as e (e.id)}
+                        <option value={e.id}>{e.name}</option>
+                    {/each}
+                </select>
+            </div>
+        {/if}
+
+        {#if prompts.length || offered.length}
+            <div class="flex flex-col gap-1">
+                <div class="label">
+                    <span class="label-text">Prompted by</span>
+                </div>
+                {#each prompts as id (id)}
+                    {@const r = recs.all.find((x) => x.id === id)}
+                    <label class="label cursor-pointer justify-start gap-2 py-0">
+                        <input
+                            type="checkbox"
+                            class="checkbox checkbox-sm"
+                            checked
+                            onchange={() => togglePrompt(id)}
+                        />
+                        <span class="label-text text-sm">
+                            {r?.note || "what you were told about this"}
+                        </span>
+                    </label>
+                {/each}
+                {#each offered as r (r.id)}
+                    <!-- The offer §6.2 asks for. Unticked: going somewhere and
+                         going *because* somebody said so are different claims,
+                         and only the user can make the second. -->
+                    <label class="label cursor-pointer justify-start gap-2 py-0">
+                        <input
+                            type="checkbox"
+                            class="checkbox checkbox-sm"
+                            onchange={() => togglePrompt(r.id)}
+                        />
+                        <span class="label-text text-sm opacity-70">
+                            Was this because you were told about it?
+                            {#if r.note}<span class="opacity-60">— {r.note}</span>{/if}
+                        </span>
+                    </label>
+                {/each}
+            </div>
+        {/if}
 
         <TagMultiselect selected={tags} ontoggle={toggleTag} />
 

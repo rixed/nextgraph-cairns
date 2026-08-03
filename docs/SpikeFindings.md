@@ -519,6 +519,10 @@ The fix is one attribute in the embedding page, and it belongs to whoever owns t
 3. "Who told you" is one property per kind, not a union: `prov:wasAttributedTo` for a contact,
    `dcterms:source` as a string for a URL or free text. Spike 7's rule — never a union the ORM
    cannot read back — applies here without needing to be rediscovered.
+   **Fulfilment goes the other way**: the memory carries `prov:wasInfluencedBy → recommendation`
+   (§4.1), so "you went" is derived from the memories and never written into the shared list.
+   That removes the only cross-document write the save path had, and with it the only way a
+   memory could be written while the fact that it fulfilled something was not.
 4. Events are read by SPARQL rather than through a shape, because a `schema:Event` shape would
    also match every memory (`app:Memory` ⊑ `schema:Event`, §3). `FILTER NOT EXISTS { ?s a
    app:Memory }` is the whole difference, and it belongs in a query, not in a shape fighting

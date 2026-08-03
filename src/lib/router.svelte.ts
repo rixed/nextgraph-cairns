@@ -12,7 +12,8 @@ export type RouteName =
     | "placepicker" // S-32, params: start/end = the caller's span, for the
     //                 coordinates its photographs already carry
     | "here" // S-01
-    | "heard" // S-40
+    | "heard" // S-40, params: focus = a recommendation to mark on arrival,
+    //           set when S-20 sends the user here (§6.3)
     | "recommendation" // S-41, params: id = the one being edited, or
     //                    item = a referent chosen before the editor opened
     | "people" // S-60

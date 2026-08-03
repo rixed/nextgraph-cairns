@@ -97,17 +97,6 @@ export const recommendationShapeSchema = {
         iri: "http://purl.org/dc/terms/subject",
         readablePredicate: "subject",
       },
-      {
-        dataTypes: [
-          {
-            valType: "iri",
-          },
-        ],
-        maxCardinality: 1,
-        minCardinality: 0,
-        iri: "https://schema.org/about",
-        readablePredicate: "about",
-      },
     ],
   },
 } as const satisfies Schema;

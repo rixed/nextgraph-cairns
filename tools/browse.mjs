@@ -1541,15 +1541,29 @@ try {
             b.click();
         });
         await page.waitForTimeout(2000);
+
+        // §6.2: capturing at a recommended place *offers* to link, and does not
+        // mark. That the offer is showing is the proof it was not automatic —
+        // nothing is linked at this point.
+        const editing = await f.evaluate(() => document.body.innerText);
+        console.log(
+            /Was this because you were told about it/.test(editing)
+                ? "OK: the editor offers the link rather than making the claim"
+                : `FAIL: no offer in the editor:\n${editing.slice(0, 400)}`
+        );
+        await f
+            .getByText("Was this because you were told about it?")
+            .click();
+        await page.waitForTimeout(500);
+
         await click(f, "Save");
         await page.waitForTimeout(6000);
 
         const detail = await f.evaluate(() => document.body.innerText);
         console.log(
-            /You had been told about this/.test(detail) &&
-                /the m6 driver/.test(detail)
-                ? "OK: capturing there marked it fulfilled, and the memory says so"
-                : `FAIL: no fulfilment on the memory:\n${detail.slice(0, 500)}`
+            /You came here because/.test(detail) && /the m6 driver/.test(detail)
+                ? "OK: accepting the offer records the prompt on the memory"
+                : `FAIL: no prompt on the memory:\n${detail.slice(0, 500)}`
         );
 
         await f.evaluate(() => (location.hash = "#/heard"));

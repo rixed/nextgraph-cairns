@@ -37,8 +37,6 @@ export interface Recommendation {
     told?: PrecisionDate;
     note?: string;
     tags: string[];
-    /** The memory that fulfilled it, if one has. */
-    fulfilledBy?: string;
 }
 
 export function toRecommendation(r: RecShape): Recommendation {
@@ -51,7 +49,6 @@ export function toRecommendation(r: RecShape): Recommendation {
         told: parsePrecisionDate(r.date),
         note: r.description,
         tags: [...(r.subject ?? [])],
-        fulfilledBy: r.about,
     };
 }
 
@@ -196,9 +193,9 @@ export async function addRecommendation(
 }
 
 /**
- * Everything the editor owns. `schema:about` is not here on purpose: fulfilment
- * is a fact about a memory that was captured, not a field of the form, and
- * editing a note must not quietly forget that you went.
+ * Everything the editor owns — which is everything a recommendation has. There
+ * is no fulfilment field to preserve across an edit, because fulfilment lives
+ * on the memory (§4.1); editing what Ana said cannot forget that you went.
  */
 const EDITABLE = [
     "schema:item",
@@ -257,44 +254,41 @@ function docOf(id: string): string {
 }
 
 /**
- * §6.2, S-21: "capturing at a recommended place or event marks that
- * recommendation fulfilled". Called with what the memory claims — its locations
- * and the public event it is about — and the memory's own document.
+ * Which recommendations a set of memories says were acted on (§4.1: "a
+ * recommendation is fulfilled when a memory references it via
+ * prov:wasInfluencedBy"). Derived on every read, like every other inference in
+ * this app (§1.3.16) — there is nothing to write and nothing to keep in step.
  *
- * One update for all of them, whatever their number: spike 8's rule, and the
- * reason a memory saved at three recommended places cannot come out half
- * fulfilled. Already-fulfilled recommendations are left alone; the first visit
- * is the one that answers "did I ever go?", and overwriting it with the most
- * recent would lose that.
+ * Several memories may point at one recommendation: you can go twice, and the
+ * first visit is not undone by the second.
  */
-export async function fulfilRecommendations(
+export function fulfilments(
+    memories: readonly {
+        "@graph": string;
+        wasInfluencedBy?: Iterable<string>;
+    }[]
+): Map<string, string[]> {
+    const out = new Map<string, string[]>();
+    for (const m of memories)
+        for (const rec of m.wasInfluencedBy ?? [])
+            out.set(rec, [...(out.get(rec) ?? []), m["@graph"]]);
+    return out;
+}
+
+/**
+ * Recommendations whose referent a memory's claims match — what S-21 offers to
+ * link (§6.2: "capturing at a recommended place or event offers to link that
+ * recommendation to the memory"). An offer, not a mark: whether you went
+ * because Ana said so is a claim about your own intent, and the app does not
+ * get to make it for you.
+ *
+ * `referents` are the identified places and public events the memory claims. A
+ * dropped pin is not among them: nothing can point at it (§1.3), including a
+ * recommendation.
+ */
+export function promptedBy(
     all: Recommendation[],
-    referents: string[],
-    memoryDoc: string
-): Promise<Recommendation[]> {
-    const hit = all.filter(
-        (r) => !r.fulfilledBy && referents.includes(r.item)
-    );
-    if (!hit.length) return [];
-    const s = await sessionPromise;
-    // They may in principle sit in different list documents; group so each
-    // update names the document it commits to.
-    const byDoc = new Map<string, Recommendation[]>();
-    for (const r of hit) {
-        const list = byDoc.get(r.doc) ?? [];
-        list.push(r);
-        byDoc.set(r.doc, list);
-    }
-    for (const [doc, items] of byDoc) {
-        const t = items
-            .map((r) => `<${r.id}> schema:about <${memoryDoc}>`)
-            .join(" .\n");
-        await s.ng.sparql_update(
-            s.session_id,
-            `${SPARQL_PREFIXES}
-             INSERT DATA { GRAPH <${doc}> {\n${t} .\n} }`,
-            doc
-        );
-    }
-    return hit;
+    referents: string[]
+): Recommendation[] {
+    return all.filter((r) => referents.includes(r.item));
 }

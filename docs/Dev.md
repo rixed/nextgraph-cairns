@@ -110,6 +110,10 @@ e2e-m6` overrides geolocation to Lisbon before it starts. That is also the only
 coverage S-01's proximity path has ever had: the other milestones run with
 location refused, which exercises §8's fallback and nothing else.
 
+Fulfilment is not stored on the recommendation. A memory points at what prompted it with
+`prov:wasInfluencedBy`, and "you went" is derived by scanning memories (§4.1) — so S-40, S-31
+and S-01 all subscribe to memories to answer it, and nothing has to be kept in step.
+
 Referents come from `make seed-foreign` — its five public events include one
 running in a couple of days and one from four months ago, which is what makes
 "happening soonest" and "expired" visible rather than notional.

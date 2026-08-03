@@ -24,7 +24,10 @@
     } from "../lib/reservations.svelte";
     import ReservationCard from "../components/ReservationCard.svelte";
     import { useHere, km, formatKm } from "../lib/here.svelte";
-    import { useRecommendations } from "../lib/recommendations";
+    import {
+        useRecommendations,
+        fulfilments,
+    } from "../lib/recommendations";
     import { useEvents } from "../lib/events.svelte";
     import {
         resolve,
@@ -71,7 +74,15 @@
     const recs = useRecommendations();
     const events = useEvents();
     const heard = $derived(
-        resolve(recs.all, events.all, places.all, where.position)
+        resolve(
+            recs.all,
+            events.all,
+            places.all,
+            where.position,
+            // Where you have already been, read off the memories themselves
+            // (§4.1) — this screen is already subscribed to them.
+            fulfilments(all as any)
+        )
     );
     const now = $derived(bestMoment(heard));
     const around = $derived(nearbyRecommended(heard));

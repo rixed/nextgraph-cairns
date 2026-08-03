@@ -4,9 +4,11 @@ PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 PREFIX foaf: <http://xmlns.com/foaf/0.1/>
 PREFIX geo: <http://www.w3.org/2003/01/geo/wgs84_pos#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
 
-# EXTRA a: memories are multi-typed — always schema:Event (§3), sometimes
-# schema:Trip (§3.6). The shape keys on app:Memory and tolerates the rest.
+# EXTRA a: a memory is always schema:Event as well as app:Memory (§3), and the
+# store may hold other types on the same subject. The shape keys on app:Memory
+# and tolerates the rest.
 app:MemoryShape EXTRA a {
   a [app:Memory] ;
   schema:name xsd:string ? ;
@@ -30,6 +32,13 @@ app:MemoryShape EXTRA a {
   schema:subjectOf IRI * ;
   # Cover: one of this memory's media, designated locally.
   schema:image IRI ? ;
+  # Public events this memory is about (§4.3), 0..N: a day at a festival that
+  # was also a national holiday is one memory about two events.
+  schema:about IRI * ;
+  # The recommendations that prompted it (§3, §4.1). Fulfilment is read from
+  # here and never stored on the recommendation: the memory is the later fact,
+  # and "fulfilled" is derived like every other inference (§1.3.16).
+  prov:wasInfluencedBy IRI * ;
   # Per-media notes. The app cannot write to a foreign media document, so a
   # note about a photograph lives on the memory that references it (§3.4).
   schema:comment @app:MediaNoteShape * ;

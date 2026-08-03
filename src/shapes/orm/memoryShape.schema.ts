@@ -153,6 +153,28 @@ export const memoryShapeSchema = {
       {
         dataTypes: [
           {
+            valType: "iri",
+          },
+        ],
+        maxCardinality: -1,
+        minCardinality: 0,
+        iri: "https://schema.org/about",
+        readablePredicate: "about",
+      },
+      {
+        dataTypes: [
+          {
+            valType: "iri",
+          },
+        ],
+        maxCardinality: -1,
+        minCardinality: 0,
+        iri: "http://www.w3.org/ns/prov#wasInfluencedBy",
+        readablePredicate: "wasInfluencedBy",
+      },
+      {
+        dataTypes: [
+          {
             valType: "shape",
             shape: "did:ng:z:cairns/MediaNoteShape",
           },

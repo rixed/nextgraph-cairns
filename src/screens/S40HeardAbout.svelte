@@ -14,8 +14,11 @@
     import {
         useRecommendations,
         recommendationsReady,
+        fulfilments,
         type Recommendation,
     } from "../lib/recommendations";
+    import { useShape } from "@ng-org/orm/svelte";
+    import { MemoryShapeType } from "../shapes/orm/memoryShape.shapeTypes";
     import { useEvents } from "../lib/events.svelte";
     import { useAllPlaces, placeLabel, type Place } from "../lib/places";
     import {
@@ -36,6 +39,11 @@
 
     const recs = useRecommendations();
     const events = useEvents();
+    // Fulfilment is a fact the memories carry (§4.1), so this screen has to
+    // read them. Derived on every pass rather than stored: nothing to keep in
+    // step, and a memory that names a recommendation is the whole evidence.
+    const memories = useShape(MemoryShapeType, "did:ng:i");
+    const fulfilled = $derived(fulfilments([...memories] as any));
     const places = useAllPlaces();
     const people = useAllPeople();
     const where = useHere();
@@ -51,9 +59,21 @@
 
     const rows = $derived(
         sortHeardAbout(
-            resolve(recs.all, events.all, places.all, where.position)
+            resolve(
+                recs.all,
+                events.all,
+                places.all,
+                where.position,
+                fulfilled
+            )
         )
     );
+
+    // §6.3 sends S-20 here by tapping a recommendation. Landing on a list of
+    // forty and hunting for the one just tapped would not be arriving, so the
+    // row is marked — briefly, because it is a hint about how you got here and
+    // not a state the screen stays in.
+    const focus = router.current.params?.focus;
 
     /** Who has ever told the user anything — the source facet's options. */
     const sources = $derived.by(() => {
@@ -77,7 +97,7 @@
             if (kind === "event" && !r.event) return false;
             if (kind === "place" && r.event) return false;
             if (upcomingOnly && r.urgency === "past") return false;
-            if (unfulfilledOnly && r.rec.fulfilledBy) return false;
+            if (unfulfilledOnly && r.fulfilledBy.length) return false;
             if (toldBy && (r.rec.attributedTo ?? r.rec.source?.trim()) !== toldBy)
                 return false;
             return true;
@@ -136,6 +156,16 @@
 </script>
 
 <div class="p-4 max-w-2xl mx-auto flex flex-col gap-3">
+    {#if router.depth > 1}
+        <!-- Reached from a memory (§6.3) rather than from the dock, so there is
+             somewhere to go back to. As a tab root there is not. -->
+        <button
+            class="btn btn-ghost btn-sm self-start"
+            onclick={() => router.pop()}
+        >
+            ← back
+        </button>
+    {/if}
     <div class="flex items-center justify-between">
         <h1 class="text-xl font-bold">Heard about</h1>
         <button class="btn btn-primary btn-sm" onclick={add}>
@@ -203,7 +233,11 @@
     {#if shown.length}
         <ul class="flex flex-col gap-2">
             {#each shown as row (row.rec.id)}
-                <li class="bg-base-200 rounded-box p-3 flex flex-col gap-1">
+                <li
+                    class="bg-base-200 rounded-box p-3 flex flex-col gap-1"
+                    class:ring-2={row.rec.id === focus}
+                    class:ring-primary={row.rec.id === focus}
+                >
                     <div class="flex items-start justify-between gap-2">
                         <button
                             class="text-left flex-1"
@@ -295,18 +329,20 @@
                                 show on the map
                             </button>
                         {/if}
-                        {#if row.rec.fulfilledBy}
+                        {#each row.fulfilledBy as doc (doc)}
+                            <!-- You can go twice: each memory that names this
+                                 recommendation gets its own way back. -->
                             <button
                                 class="btn btn-ghost btn-xs"
                                 onclick={() =>
                                     router.push({
                                         name: "detail",
-                                        params: { doc: row.rec.fulfilledBy! },
+                                        params: { doc },
                                     })}
                             >
                                 ✓ you went — open the memory
                             </button>
-                        {/if}
+                        {/each}
                     </div>
                 </li>
             {/each}

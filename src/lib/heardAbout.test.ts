@@ -118,14 +118,11 @@ const rec = (
     id: string,
     r: Partial<ResolvedRecommendation> & { fulfilled?: boolean } = {}
 ): ResolvedRecommendation => ({
-    rec: {
-        doc: "d",
-        id,
-        item: "i",
-        tags: [],
-        fulfilledBy: r.fulfilled ? "a-memory" : undefined,
-    },
+    rec: { doc: "d", id, item: "i", tags: [] },
     label: id,
+    // Fulfilment is what the memories say, not what the recommendation holds
+    // (§4.1) — the list of memories that named it.
+    fulfilledBy: r.fulfilled ? ["a-memory"] : [],
     ...r,
     // Derived, never passed in: a fixture that could claim "upcoming" while
     // holding a span from 2019 would test nothing.

@@ -28,7 +28,11 @@
     import { formatPrecisionDate, parsePrecisionDate } from "../lib/dates";
     import { browse } from "../lib/browse.svelte";
     import { router } from "../lib/router.svelte";
-    import { useRecommendations, about } from "../lib/recommendations";
+    import {
+        useRecommendations,
+        about,
+        fulfilments,
+    } from "../lib/recommendations";
     import { useAllPeople, findPerson, personLabel } from "../lib/people";
 
     const iri = router.current.params!.iri;
@@ -83,6 +87,11 @@
      */
     const recs = useRecommendations();
     const people = useAllPeople();
+    // "Whether you went" is derived from the memories, which this screen holds
+    // anyway (§4.1) — nothing on the recommendation itself records it.
+    const fulfilled = $derived(
+        fulfilments([...memories] as any)
+    );
     const told = $derived(about(recs.all, iri));
 
     function whoTold(r: (typeof told)[number]): string | undefined {
@@ -223,7 +232,7 @@
                             <span class="text-xs opacity-70">
                                 {whoTold(r) ?? "Somebody"} told you
                                 {#if r.told}· {formatPrecisionDate(r.told)}{/if}
-                                {#if r.fulfilledBy}· you went{/if}
+                                {#if fulfilled.get(r.id)?.length}· you went{/if}
                             </span>
                             {#if r.note}<span>{r.note}</span>{/if}
                             <div class="flex gap-2">
@@ -237,18 +246,18 @@
                                 >
                                     edit
                                 </button>
-                                {#if r.fulfilledBy}
+                                {#each fulfilled.get(r.id) ?? [] as doc (doc)}
                                     <button
                                         class="btn btn-ghost btn-xs self-start"
                                         onclick={() =>
                                             router.push({
                                                 name: "detail",
-                                                params: { doc: r.fulfilledBy! },
+                                                params: { doc },
                                             })}
                                     >
                                         open the memory
                                     </button>
-                                {/if}
+                                {/each}
                             </div>
                         </li>
                     {/each}

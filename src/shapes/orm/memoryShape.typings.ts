@@ -63,6 +63,14 @@ export interface Memory {
    */
   image?: IRI;
   /**
+   * Original IRI: https://schema.org/about
+   */
+  about?: Set<IRI>;
+  /**
+   * Original IRI: http://www.w3.org/ns/prov#wasInfluencedBy
+   */
+  wasInfluencedBy?: Set<IRI>;
+  /**
    * Original IRI: https://schema.org/comment
    */
   comment?: Set<MediaNote>;
