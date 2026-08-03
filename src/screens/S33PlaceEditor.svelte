@@ -1,24 +1,33 @@
 <script lang="ts">
-    // S-33 Unnamed / custom place editor (§6.2): edits an unnamed location's
-    // coordinates and free-text name, and handles promotion to an identified
-    // place — minting a URI, optionally reconciling via owl:sameAs, and
-    // rewriting the referring memory.
+    // S-33 Unnamed / custom place editor (§6.2). Two things arrive here:
     //
-    // The screen exists because §3.2's second shape is deliberately poor: a
-    // location with coordinates and no identity is not referenceable, not
-    // shareable, not searchable. That is the right default — most places one
-    // stands in are nobody's business — and this is where the user says "this
-    // one is different", once, for the one that turns out to matter.
-    import { useAllPlaces, findPlace, nestedIn } from "../lib/places";
+    // - an **unnamed location** (§3.2's second shape): coordinates nested in the
+    //   memory that recorded them, with no URI — not referenceable, not
+    //   shareable, not searchable. That is the right default, because most
+    //   places one stands in are nobody's business. This screen is where the
+    //   user says "this one is different", once, and promotes it.
+    // - an **identified place** the app can write, from S-31. Here the rule is
+    //   the opposite one: change what we were shown and touch nothing else.
+    //   A place document may carry opening hours, categories, an address in
+    //   parts — anything the application that wrote it cared about — and this
+    //   app models six properties (§5).
     import {
+        useAllPlaces,
+        findPlace,
+        nestedIn,
+        isWritable,
         updateUnnamedLocation,
+        updatePlaceFields,
         promoteLocation,
         formatCoords,
+        type PlaceFields,
     } from "../lib/places";
     import { router } from "../lib/router.svelte";
 
     const iri = router.current.params!.iri;
     const memoryDoc = nestedIn(iri);
+    const unnamed = !!memoryDoc;
+    const writable = $derived(unnamed || isWritable(iri));
 
     const places = useAllPlaces();
     const place = $derived(findPlace(places.all, iri));
@@ -28,6 +37,12 @@
     let name = $state("");
     let lat = $state("");
     let lon = $state("");
+    let sameAs = $state("");
+    /**
+     * Exactly what was read, kept so that an edit can withdraw the values it
+     * was shown and nothing else — see `updatePlaceFields`.
+     */
+    let seen = $state<PlaceFields>({});
     let seeded = false;
     $effect(() => {
         if (seeded || !place) return;
@@ -35,10 +50,16 @@
         name = place.name ?? "";
         lat = place.lat !== undefined ? String(place.lat) : "";
         lon = place.lon !== undefined ? String(place.lon) : "";
+        sameAs = place.sameAs ?? "";
+        seen = {
+            name: place.name,
+            lat: place.lat,
+            lon: place.lon,
+            sameAs: place.sameAs,
+        };
     });
 
     let promoting = $state(false);
-    let sameAs = $state("");
     let working = $state(false);
     let error = $state("");
 
@@ -57,11 +78,23 @@
         working = true;
         error = "";
         try {
-            await updateUnnamedLocation(iri, {
-                name,
-                lat: coords.lat,
-                lon: coords.lon,
-            });
+            if (unnamed)
+                await updateUnnamedLocation(iri, {
+                    name,
+                    lat: coords.lat,
+                    lon: coords.lon,
+                });
+            else
+                await updatePlaceFields(
+                    iri,
+                    {
+                        name,
+                        lat: coords.lat,
+                        lon: coords.lon,
+                        sameAs,
+                    },
+                    seen
+                );
             router.pop();
         } catch (e) {
             error = String(e);
@@ -99,22 +132,37 @@
         ← back
     </button>
 
-    {#if !memoryDoc}
-        <!-- Reached with an identified place's URI: S-31 is that screen. -->
+    {#if !writable}
+        <!-- A gazetteer's URI: reachable, readable, and not ours to rewrite. -->
         <div class="alert">
-            <span>This is not an unnamed location.</span>
+            <span>
+                This place is described somewhere this app cannot write. You can
+                point memories at it, but its name and coordinates belong to
+                whoever publishes it.
+            </span>
         </div>
     {:else}
-        <h1 class="text-xl font-bold">A place with no name</h1>
-        <p class="text-sm opacity-70">
-            It lives inside the memory that recorded it, and nothing else can
-            point at it. Give it a name here if that helps you recognise it —
-            or make it a place of its own, and every memory can.
-        </p>
+        {#if unnamed}
+            <h1 class="text-xl font-bold">A place with no name</h1>
+            <p class="text-sm opacity-70">
+                It lives inside the memory that recorded it, and nothing else
+                can point at it. Give it a name here if that helps you recognise
+                it — or make it a place of its own, and every memory can.
+            </p>
+        {:else}
+            <h1 class="text-xl font-bold">Edit this place</h1>
+            <p class="text-sm opacity-70">
+                Only what is shown here changes. Anything else this place
+                carries — written by you elsewhere, or by another application —
+                is left exactly as it is.
+            </p>
+        {/if}
 
         <label class="form-control">
             <div class="label py-0">
-                <span class="label-text text-xs">What you call it</span>
+                <span class="label-text text-xs">
+                    {unnamed ? "What you call it" : "Name"}
+                </span>
             </div>
             <input
                 class="input input-bordered input-sm"
@@ -153,6 +201,21 @@
             <span class="text-xs opacity-50">
                 {formatCoords(coords.lat, coords.lon)}
             </span>
+        {/if}
+
+        {#if !unnamed}
+            <label class="form-control">
+                <div class="label py-0">
+                    <span class="label-text text-xs">
+                        Also known as (optional)
+                    </span>
+                </div>
+                <input
+                    class="input input-bordered input-sm"
+                    placeholder="https://www.wikidata.org/entity/Q…"
+                    bind:value={sameAs}
+                />
+            </label>
         {/if}
 
         {#if promoting}
@@ -215,7 +278,7 @@
             >
                 Save
             </button>
-            {#if !promoting}
+            {#if unnamed && !promoting}
                 <button
                     class="btn btn-sm btn-outline"
                     disabled={working}

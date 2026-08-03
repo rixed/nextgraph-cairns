@@ -7,7 +7,7 @@
     import S21Editor from "./screens/S21Editor.svelte";
     import S22cMedia from "./screens/S22cMedia.svelte";
     import S32PlacePicker from "./screens/S32PlacePicker.svelte";
-    import S33UnnamedPlace from "./screens/S33UnnamedPlace.svelte";
+    import S33PlaceEditor from "./screens/S33PlaceEditor.svelte";
     import S01HereNow from "./screens/S01HereNow.svelte";
     import S02Search from "./screens/S02Search.svelte";
     import S60People from "./screens/S60People.svelte";
@@ -32,7 +32,7 @@
         mediagrid: S22cMedia,
         place: S31PlaceDetail,
         placepicker: S32PlacePicker,
-        unnamedplace: S33UnnamedPlace,
+        placeeditor: S33PlaceEditor,
         here: S01HereNow,
         search: S02Search,
         people: S60People,

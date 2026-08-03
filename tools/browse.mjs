@@ -2259,6 +2259,75 @@ try {
         );
         await shot(page, "s33-promoted");
 
+        console.log("=== editing a place leaves what it does not know ===");
+        // Stand in for the application that wrote the rest of this place:
+        // three properties Cairns has never heard of and cannot show, which a
+        // wholesale rewrite of the subject would silently take with it.
+        const placeDoc = (await placeDocs())[0];
+        await f.evaluate(
+            (g) =>
+                window.spikeUpdate(
+                    `PREFIX schema: <https://schema.org/>
+                     INSERT DATA { GRAPH <${g}> {
+                        <${g}> schema:openingHours "Mo-Fr 09:00-17:00" ;
+                               schema:telephone "+351 000 000 000" ;
+                               schema:alternateName "o sítio" } }`,
+                    g
+                ),
+            placeDoc
+        );
+        await page.waitForTimeout(3000);
+
+        // `.last()`: the hidden S-20 below this screen has an Edit of its own.
+        await f.getByRole("button", { name: "Edit", exact: true }).last().click();
+        await page.waitForTimeout(2500);
+        await f
+            .locator('input[placeholder="the beach below the road"]')
+            .fill("S33 probe place");
+        await f.locator('input[placeholder="Latitude"]').fill("38.75");
+        await f.getByRole("button", { name: "Save", exact: true }).click();
+        await page.waitForTimeout(5000);
+
+        const survived = await f.evaluate(
+            (g) =>
+                window.spikeSelect(
+                    `PREFIX schema: <https://schema.org/>
+                     SELECT ?h ?tel ?alt ?name WHERE { GRAPH <${g}> {
+                        <${g}> schema:openingHours ?h ;
+                               schema:telephone ?tel ;
+                               schema:alternateName ?alt ;
+                               schema:name ?name } }`
+                ),
+            placeDoc
+        );
+        console.log(
+            survived?.length === 1 &&
+                survived[0].h.value === "Mo-Fr 09:00-17:00" &&
+                survived[0].tel.value === "+351 000 000 000" &&
+                survived[0].alt.value === "o sítio" &&
+                survived[0].name.value === "S33 probe place"
+                ? "OK: what the app does not model came through untouched"
+                : `FAIL: ${JSON.stringify(survived)}`
+        );
+        const moved = await f.evaluate(
+            (g) =>
+                window.spikeSelect(
+                    `PREFIX schema: <https://schema.org/>
+                     PREFIX geo: <http://www.w3.org/2003/01/geo/wgs84_pos#>
+                     SELECT ?flat ?structured WHERE { GRAPH <${g}> {
+                        <${g}> geo:lat ?flat ; schema:geo ?n .
+                        ?n schema:latitude ?structured } }`
+                ),
+            placeDoc
+        );
+        console.log(
+            moved?.length === 1 &&
+                moved[0].flat.value === "38.75" &&
+                moved[0].structured.value === "38.75"
+                ? "OK: both forms of the coordinates moved together"
+                : `FAIL: ${JSON.stringify(moved)}`
+        );
+
         await cleanUp(page, f, TITLE, 0);
         if (!process.env.KEEP) {
             await wipePlaces();

@@ -134,7 +134,7 @@
                 router.push(
                     isIdentified(h.id)
                         ? { name: "place", params: { iri: h.id } }
-                        : { name: "unnamedplace", params: { iri: h.id } }
+                        : { name: "placeeditor", params: { iri: h.id } }
                 );
                 break;
             case "person":

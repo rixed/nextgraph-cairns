@@ -182,12 +182,28 @@ promotion leaves no orphan nested subject behind, the failure mode m3 already gu
 editor. It also removes the document promotion mints, which is the one step in this repo where
 a driver run creates a document that outlives the memory it came from.
 
-**Not built: S-31 → S-33, "edit a locally-owned place."** The screen handles unnamed locations
-only. Editing an identified place needs an answer to *which place documents may this app
-write*: a `did:ng` place document might have been minted here or by another application, and
-§5 forbids editing the second. Nothing in the store distinguishes them today, and guessing
-wrong means either refusing to edit our own places or writing into someone else's. That is a
-boundary question rather than a missing screen — a candidate Appendix A entry.
+### Editing an identified place: delete by value, never by predicate
+
+S-31's "edit if locally owned" (§6.2) opens the same screen in its other mode. There is no way
+to tell a place document this app minted from one another application wrote, and the answer is
+not to refuse: the user knows what she is doing with her places. The answer is that an edit
+**can only withdraw what it was shown**.
+
+So `updatePlaceFields` takes the values that were read alongside the new ones, and every
+deletion names an exact value — `DELETE DATA { <p> schema:name "the old one" }`, never
+`DELETE WHERE { <p> schema:name ?v }`. A second name in another language, a `sameAs` the app's
+shape does not surface, opening hours, categories, an address broken into parts: none of it
+can be caught in a deletion that names values the app never saw. The structured coordinates
+node is updated through a `WHERE` clause that binds whatever node `schema:geo` points at, so a
+foreign place keeps its own node rather than growing a second one.
+
+The consequence is worth knowing: an edit made against a stale value withdraws the *stale*
+one, and the current one survives beside the new. That is a merge to resolve, not data
+destroyed — the right trade for a store shared with applications this one has never heard of.
+
+Places whose URI is not `did:ng:` get no Edit button at all: a gazetteer's entry is readable
+and not ours to rewrite. `make s33` proves the rule by writing three properties Cairns cannot
+show into a place document and asserting they are all still there after an edit.
 
 ## Search, without an index
 

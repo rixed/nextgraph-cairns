@@ -308,6 +308,109 @@ export async function promoteLocation(
     return doc;
 }
 
+/** A place document this app can write at all: ours to reach, not a gazetteer's. */
+export function isWritable(iri: string): boolean {
+    return isIdentified(iri) && iri.startsWith("did:ng:");
+}
+
+/** The fields S-33 knows how to edit on an identified place. */
+export interface PlaceFields {
+    name?: string;
+    lat?: number;
+    lon?: number;
+    sameAs?: string;
+}
+
+/**
+ * Edit an identified place — S-31's "edit if locally owned" (§6.2).
+ *
+ * **Every deletion names the exact value it removes.** Not
+ * `DELETE WHERE { <p> schema:name ?v }`, which would take a second name in
+ * another language, or every `owl:sameAs` when the shape shows the app only
+ * one. A place document may hold opening hours, categories, an address broken
+ * into parts, whatever the application that wrote it cared about; this app
+ * models six properties and must leave the rest exactly as it found them (§5).
+ * So the caller passes what it read, and only that is withdrawn.
+ *
+ * The consequence is worth stating: an edit made while another device holds a
+ * stale value withdraws the stale one, not the current one, and the current one
+ * survives beside the new. That is a merge to resolve, not data destroyed —
+ * which is the correct trade for a store the user shares with applications this
+ * one has never heard of.
+ */
+export async function updatePlaceFields(
+    iri: string,
+    next: PlaceFields,
+    previous: PlaceFields
+): Promise<void> {
+    if (!isWritable(iri))
+        throw new Error(`not a place this app can write: ${iri}`);
+    const s = await sessionPromise;
+    const ops: string[] = [];
+    const drop = (p: string, v: string) =>
+        ops.push(`DELETE DATA { GRAPH <${iri}> { <${iri}> ${p} ${v} } }`);
+    const add = (p: string, v: string) =>
+        ops.push(`INSERT DATA { GRAPH <${iri}> { <${iri}> ${p} ${v} } }`);
+
+    const name = next.name?.trim();
+    if (previous.name !== undefined && previous.name !== name)
+        drop("schema:name", stringLiteral(previous.name));
+    if (name && name !== previous.name) add("schema:name", stringLiteral(name));
+
+    const sameAs = next.sameAs?.trim();
+    if (previous.sameAs && previous.sameAs !== sameAs)
+        drop("owl:sameAs", `<${previous.sameAs}>`);
+    if (sameAs && sameAs !== previous.sameAs) add("owl:sameAs", `<${sameAs}>`);
+
+    const moved =
+        next.lat !== undefined &&
+        next.lon !== undefined &&
+        (next.lat !== previous.lat || next.lon !== previous.lon);
+    if (moved) {
+        if (previous.lat !== undefined)
+            drop("geo:lat", decimalLiteral(previous.lat));
+        if (previous.lon !== undefined)
+            drop("geo:long", decimalLiteral(previous.lon));
+        add("geo:lat", decimalLiteral(next.lat!));
+        add("geo:long", decimalLiteral(next.lon!));
+        // The structured node, wherever it is and whatever else it carries:
+        // its two coordinates are replaced, and its own IRI is left to be
+        // whatever the document already says — a foreign place may well not
+        // have used ours. Bound in the WHERE clause because the ORM cannot
+        // read a nested object back (B-14) and so cannot tell us its name.
+        ops.push(
+            `DELETE { GRAPH <${iri}> {
+                ?n schema:latitude ?la . ?n schema:longitude ?lo } }
+             INSERT { GRAPH <${iri}> {
+                ?n schema:latitude ${decimalLiteral(next.lat!)} .
+                ?n schema:longitude ${decimalLiteral(next.lon!)} } }
+             WHERE { GRAPH <${iri}> {
+                <${iri}> schema:geo ?n .
+                OPTIONAL { ?n schema:latitude ?la }
+                OPTIONAL { ?n schema:longitude ?lo } } }`
+        );
+        // And if the document has no coordinates node at all, give it the one
+        // §3.2 asks for rather than leaving the flat pair to stand alone.
+        ops.push(
+            `INSERT { GRAPH <${iri}> {
+                <${iri}> schema:geo <${geoNodeOf(iri)}> .
+                <${geoNodeOf(iri)}> a schema:GeoCoordinates ;
+                    schema:latitude ${decimalLiteral(next.lat!)} ;
+                    schema:longitude ${decimalLiteral(next.lon!)} } }
+             WHERE { GRAPH <${iri}> {
+                <${iri}> a schema:Place .
+                FILTER NOT EXISTS { <${iri}> schema:geo ?any } } }`
+        );
+    }
+
+    if (!ops.length) return;
+    await s.ng.sparql_update(
+        s.session_id,
+        `${SPARQL_PREFIXES}\n${ops.join(" ;\n")}`,
+        iri
+    );
+}
+
 // `createPlaceDoc` lived here, written ahead of S-33 and never called: promotion
 // mints the document and repoints the memory in one update, which this could
 // not do. An exported writer that mints documents and nothing calls is a thing

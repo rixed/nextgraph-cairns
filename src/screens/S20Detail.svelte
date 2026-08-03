@@ -61,8 +61,8 @@
 
     /**
      * The locations this memory claims, resolved through the IRI join (§3.2).
-     * An identified place opens S-31; an unnamed one wants S-33, which is not
-     * built, so it says so rather than being flattened into inert text.
+     * An identified place opens S-31, where it is a thing in its own right; an
+     * unnamed one opens S-33, where it can be named, moved, or promoted.
      */
     const locations = $derived(
         [...(memory?.location ?? [])].map((iri) => ({
@@ -191,7 +191,7 @@
                                               params: { iri: loc.iri },
                                           }
                                         : {
-                                              name: "unnamedplace",
+                                              name: "placeeditor",
                                               params: { iri: loc.iri },
                                           }
                                 )}

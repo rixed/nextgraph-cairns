@@ -24,6 +24,7 @@
         formatCoords,
         isWithin,
         isIdentified,
+        isWritable,
     } from "../lib/places";
     import { formatPrecisionDate, parsePrecisionDate } from "../lib/dates";
     import { browse } from "../lib/browse.svelte";
@@ -219,6 +220,20 @@
             >
                 Someone told me about this
             </button>
+            {#if isWritable(iri)}
+                <!-- §6.2: "edit if locally owned". A gazetteer's URI is
+                     readable and not ours to rewrite, so no button appears. -->
+                <button
+                    class="btn btn-sm"
+                    onclick={() =>
+                        router.push({
+                            name: "placeeditor",
+                            params: { iri },
+                        })}
+                >
+                    Edit
+                </button>
+            {/if}
         </div>
 
         {#if told.length}
