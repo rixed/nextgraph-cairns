@@ -210,16 +210,69 @@ export function dropNestedPlaces(doc: string): string[] {
 }
 
 /**
- * Give a place identity of its own: its own document, its own URI (§3.2). This
- * is what S-33's promotion will mint; the picker uses it for nothing, since a
- * place worth naming is worth keeping.
+ * The coordinates node of a subject — the one `coordTriples` writes, which a
+ * nested place hangs off its own fragment because a URI holds only one.
  */
-export async function createPlaceDoc(fields: {
-    name: string;
-    lat?: number;
-    lon?: number;
-    address?: string;
-}): Promise<string> {
+function geoNodeOf(subject: string): string {
+    return subject.includes("#") ? `${subject}-geo` : `${subject}#geo`;
+}
+
+/**
+ * Edit an unnamed location in place (S-33): its free-text name and its
+ * coordinates, inside the memory that holds it.
+ *
+ * Surgical rather than the wholesale rewrite `updateMemory` does, because this
+ * screen is reached from a memory that is not being edited: the other locations
+ * of that memory, and everything else in its document, must come out
+ * untouched. The IRI is not rewritten either — it is derived from a position
+ * (§3.2), and the reference on the memory keeps pointing at it.
+ */
+export async function updateUnnamedLocation(
+    iri: string,
+    fields: { name?: string; lat: number; lon: number }
+): Promise<void> {
+    const doc = nestedIn(iri);
+    if (!doc) throw new Error(`not an unnamed location: ${iri}`);
+    const s = await sessionPromise;
+    const t = [`<${iri}> a schema:Place`, ...coordTriples(iri, fields.lat, fields.lon)];
+    if (fields.name?.trim())
+        t.push(`<${iri}> schema:name ${stringLiteral(fields.name.trim())}`);
+    await s.ng.sparql_update(
+        s.session_id,
+        `${SPARQL_PREFIXES}
+         DELETE WHERE { GRAPH <${doc}> { <${iri}> ?p ?o } } ;
+         DELETE WHERE { GRAPH <${doc}> { <${geoNodeOf(iri)}> ?p ?o } } ;
+         INSERT DATA { GRAPH <${doc}> {\n${t.join(" .\n")} .\n} }`,
+        doc
+    );
+}
+
+/**
+ * Promotion (S-33): give an unnamed location identity — its own document, its
+ * own URI — and repoint the memory that held it at the new place.
+ *
+ * One `sparql_update` over both graphs (B-06, spike 8): the place is written
+ * and the memory is repointed together, or neither is. The alternative leaves
+ * either a place nobody references or a memory pointing at a place that does
+ * not exist. The document itself must be minted first — `doc_create` is what
+ * produces the NURI the update names — so a failure after it leaves an empty
+ * document and nothing else, which is inert rather than wrong.
+ *
+ * `sameAs` is the reconciliation §3.2 and B-04 ask for: when the place already
+ * has an identity somewhere — Wikidata, OSM — say so rather than pretending
+ * this app's URI is the first one. Minting is what you do when no external
+ * match exists.
+ *
+ * Returns the new place's NURI.
+ */
+export async function promoteLocation(
+    iri: string,
+    fields: { name: string; lat: number; lon: number; sameAs?: string }
+): Promise<string> {
+    const memoryDoc = nestedIn(iri);
+    if (!memoryDoc) throw new Error(`not an unnamed location: ${iri}`);
+    const name = fields.name.trim();
+    if (!name) throw new Error("a place worth minting has a name");
     const s = await sessionPromise;
     const doc: string = await s.ng.doc_create(
         s.session_id,
@@ -228,19 +281,34 @@ export async function createPlaceDoc(fields: {
         "store",
         undefined
     );
-    const t = [
+
+    const place = [
         `<${doc}> a schema:Place`,
-        `<${doc}> schema:name ${stringLiteral(fields.name)}`,
+        `<${doc}> schema:name ${stringLiteral(name)}`,
+        ...coordTriples(doc, fields.lat, fields.lon),
     ];
-    if (fields.lat !== undefined && fields.lon !== undefined)
-        t.push(...coordTriples(doc, fields.lat, fields.lon));
-    if (fields.address)
-        t.push(`<${doc}> schema:address ${stringLiteral(fields.address)}`);
+    if (fields.sameAs?.trim())
+        place.push(`<${doc}> owl:sameAs <${fields.sameAs.trim()}>`);
+
     await s.ng.sparql_update(
         s.session_id,
         `${SPARQL_PREFIXES}
-         INSERT DATA { GRAPH <${doc}> {\n${t.join(" .\n")} .\n} }`,
-        doc
+         DELETE WHERE { GRAPH <${memoryDoc}> {
+            <${memoryDoc}> schema:location <${iri}> } } ;
+         DELETE WHERE { GRAPH <${memoryDoc}> { <${iri}> ?p ?o } } ;
+         DELETE WHERE { GRAPH <${memoryDoc}> { <${geoNodeOf(iri)}> ?p ?o } } ;
+         INSERT DATA {
+            GRAPH <${doc}> {\n${place.join(" .\n")} .\n}
+            GRAPH <${memoryDoc}> {
+               <${memoryDoc}> schema:location <${doc}> . }
+         }`,
+        // Undefined: this update belongs to no single document (spike 8).
+        undefined
     );
     return doc;
 }
+
+// `createPlaceDoc` lived here, written ahead of S-33 and never called: promotion
+// mints the document and repoints the memory in one update, which this could
+// not do. An exported writer that mints documents and nothing calls is a thing
+// that gets called by mistake, so it is gone rather than kept warm.

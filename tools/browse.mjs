@@ -2089,6 +2089,187 @@ try {
                     : `FAIL: ${left} probe concept(s) left in the store`
             );
         }
+    } else if (step === "s33") {
+        // S-33 (§6.2): edit an unnamed location in place, then promote it to a
+        // place of its own — minting a URI, reconciling with owl:sameAs, and
+        // repointing the memory in one update (B-06). Self-cleaning, including
+        // the document promotion mints.
+        const f = await loginAndGetFrame(page);
+        await settle(f);
+
+        const TITLE = "S33 probe";
+        const PIN = "S33 probe pin";
+        const RENAMED = "S33 probe pin, renamed";
+        const PLACE = "S33 probe place";
+        const SAMEAS = "https://www.wikidata.org/entity/Q99999999";
+
+        const placeDocs = () =>
+            f.evaluate(
+                (n) =>
+                    window
+                        .spikeSelect(
+                            `PREFIX schema: <https://schema.org/>
+                             SELECT ?g WHERE { GRAPH ?g {
+                                ?p a schema:Place ; schema:name "${n}" } }`
+                        )
+                        .then((r) => r.map((x) => x.g.value)),
+                PLACE
+            );
+        const wipePlaces = async () => {
+            for (const g of await placeDocs())
+                await f.evaluate(
+                    (graph) =>
+                        window.spikeUpdate(
+                            `DELETE WHERE { GRAPH <${graph}> { ?s ?p ?o } }`,
+                            graph
+                        ),
+                    g
+                );
+        };
+
+        if (await titleCount(f, TITLE)) {
+            const left = await deleteDownTo(page, f, TITLE, 0);
+            console.log(`[pre-clean] "${TITLE}" left over from before, now ${left}`);
+        }
+        if ((await placeDocs()).length) {
+            await wipePlaces();
+            await page.waitForTimeout(2000);
+            console.log("[pre-clean] removed a promoted place from before");
+        }
+
+        console.log("=== a memory with a location that has no identity ===");
+        await f.evaluate(() => (location.hash = "#/"));
+        await page.waitForTimeout(2500);
+        await f.getByLabel("Capture a memory").click();
+        await page.waitForTimeout(1500);
+        await f.getByPlaceholder("Optional").fill(TITLE, { timeout: 60000 });
+        await f.getByRole("button", { name: "+ add a location" }).click();
+        await f
+            .getByPlaceholder("What you call it (optional)")
+            .fill(PIN, { timeout: 60000 });
+        await f.getByPlaceholder("Latitude").fill("38.70");
+        await f.getByPlaceholder("Longitude").fill("-9.40");
+        await f.getByRole("button", { name: "Use these coordinates" }).click();
+        await page.waitForTimeout(1000);
+        await f.getByRole("button", { name: "Save", exact: true }).click();
+        await page.waitForTimeout(4000);
+
+        console.log("=== S-20 opens it in S-33, seeded from the store ===");
+        await f.getByRole("button", { name: new RegExp(PIN) }).first().click();
+        await page.waitForTimeout(3000);
+        const seeded = await f.evaluate(() => ({
+            name: document.querySelector(
+                'input[placeholder="the beach below the road"]'
+            )?.value,
+            lat: document.querySelector('input[placeholder="Latitude"]')?.value,
+        }));
+        console.log(
+            seeded.name === PIN && seeded.lat === "38.7"
+                ? "OK: the editor opened on what the memory holds"
+                : `FAIL: seeded with ${JSON.stringify(seeded)}`
+        );
+
+        console.log("=== editing it touches nothing else ===");
+        await f
+            .locator('input[placeholder="the beach below the road"]')
+            .fill(RENAMED);
+        await f.getByRole("button", { name: "Save", exact: true }).click();
+        await page.waitForTimeout(4000);
+        let txt = await f.evaluate(() => document.body.innerText);
+        console.log(
+            txt.includes(RENAMED) && txt.includes(TITLE)
+                ? "OK: back on the memory, with the new name on it"
+                : `FAIL: after saving:\n${txt.slice(0, 400)}`
+        );
+        const nested = await f.evaluate(
+            (n) =>
+                window.spikeSelect(
+                    `PREFIX schema: <https://schema.org/>
+                     PREFIX geo: <http://www.w3.org/2003/01/geo/wgs84_pos#>
+                     SELECT ?p ?lat WHERE { GRAPH ?g {
+                        ?p a schema:Place ; schema:name "${n}" ; geo:lat ?lat } }`
+                ),
+            RENAMED
+        );
+        console.log(
+            nested?.length === 1 &&
+                nested[0].p.value.includes("#place-0") &&
+                nested[0].lat.value === "38.7"
+                ? "OK: one nested place, still nested, coordinates intact"
+                : `FAIL: ${JSON.stringify(nested)}`
+        );
+
+        console.log("=== promotion mints a URI and repoints the memory ===");
+        await f.getByRole("button", { name: new RegExp(RENAMED) }).first().click();
+        await page.waitForTimeout(2500);
+        await f
+            .getByRole("button", { name: "Make it a place of its own…" })
+            .click();
+        await page.waitForTimeout(500);
+        await f
+            .locator('input[placeholder="the beach below the road"]')
+            .fill(PLACE);
+        await f
+            .getByPlaceholder("https://www.wikidata.org/entity/Q…")
+            .fill(SAMEAS);
+        await f.getByRole("button", { name: "Make it a place" }).click();
+        await page.waitForTimeout(6000);
+        txt = await f.evaluate(() => document.body.innerText);
+        console.log(
+            txt.includes(PLACE)
+                ? "OK: S-33 → S-31, the place has its own screen now"
+                : `FAIL: after promoting:\n${txt.slice(0, 400)}`
+        );
+
+        const promoted = await f.evaluate(
+            ([n, same]) =>
+                window.spikeSelect(
+                    `PREFIX schema: <https://schema.org/>
+                     PREFIX owl: <http://www.w3.org/2002/07/owl#>
+                     PREFIX geo: <http://www.w3.org/2003/01/geo/wgs84_pos#>
+                     PREFIX app: <did:ng:z:cairns/>
+                     SELECT ?p ?lat ?same ?m WHERE {
+                        GRAPH ?g { ?p a schema:Place ; schema:name "${n}" ;
+                                      geo:lat ?lat ; owl:sameAs ?same }
+                        GRAPH ?h { ?m a app:Memory ; schema:location ?p } }`
+                ),
+            [PLACE, SAMEAS]
+        );
+        console.log(
+            promoted?.length === 1 &&
+                !promoted[0].p.value.includes("#") &&
+                promoted[0].same.value === SAMEAS &&
+                promoted[0].lat.value === "38.7"
+                ? "OK: a URI of its own, reconciled, and the memory points at it"
+                : `FAIL: ${JSON.stringify(promoted)}`
+        );
+        const leftovers = await f.evaluate(
+            (n) =>
+                window.spikeSelect(
+                    `PREFIX schema: <https://schema.org/>
+                     SELECT ?p WHERE { GRAPH ?g {
+                        ?p a schema:Place ; schema:name "${n}" } }`
+                ),
+            RENAMED
+        );
+        console.log(
+            leftovers?.length === 0
+                ? "OK: the nested location is gone, not left behind as an orphan"
+                : `FAIL: ${JSON.stringify(leftovers)}`
+        );
+        await shot(page, "s33-promoted");
+
+        await cleanUp(page, f, TITLE, 0);
+        if (!process.env.KEEP) {
+            await wipePlaces();
+            await page.waitForTimeout(2000);
+            const left = (await placeDocs()).length;
+            console.log(
+                left === 0
+                    ? "[cleanup] the promoted place document is gone too"
+                    : `FAIL: ${left} promoted place(s) left in the store`
+            );
+        }
     } else if (step === "search") {
         // S-02 (§6.2) without an index (B-08): free text over the store,
         // grouped by type, and handed to S-22 as a filter so that a search

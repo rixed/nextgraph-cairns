@@ -11,6 +11,7 @@ export type RouteName =
     | "place" // S-31, params: iri = the place
     | "placepicker" // S-32, params: start/end = the caller's span, for the
     //                 coordinates its photographs already carry
+    | "unnamedplace" // S-33, params: iri = the nested location being edited
     | "here" // S-01
     | "search" // S-02
     | "heard" // S-40, params: focus = a recommendation to mark on arrival,
@@ -58,6 +59,8 @@ function toHash(r: Route): string {
             return `#/place/${encodeURIComponent(r.params!.iri)}`;
         case "placepicker":
             return "#/place";
+        case "unnamedplace":
+            return `#/location/${encodeURIComponent(r.params!.iri)}`;
         case "here":
             return "#/here";
         case "search":
@@ -111,6 +114,13 @@ function fromHash(h: string): Route {
         return parts[1]
             ? { name: "place", params: { iri: decodeURIComponent(parts[1]) } }
             : { name: "placepicker" };
+    // `#/location/<iri>` — the nested location editor. Its IRI carries a
+    // fragment, so it is encoded whole and split off `parts` by hand.
+    if (parts[0] === "location" && parts[1])
+        return {
+            name: "unnamedplace",
+            params: { iri: decodeURIComponent(parts.slice(1).join("/")) },
+        };
     if (parts[0] === "here") return { name: "here" };
     // The needle is not in the hash: a search is a question being asked, not a
     // place in the archive, and reloading onto an empty box is honest.

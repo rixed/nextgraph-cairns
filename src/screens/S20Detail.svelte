@@ -191,10 +191,8 @@
                                               params: { iri: loc.iri },
                                           }
                                         : {
-                                              name: "stub",
-                                              params: {
-                                                  label: "Unnamed place editor (S-33)",
-                                              },
+                                              name: "unnamedplace",
+                                              params: { iri: loc.iri },
                                           }
                                 )}
                         >

@@ -153,6 +153,42 @@ inside the list**, not a button beneath it, and **the selected chips go above th
 the listbox opens downward and covers anything below it, which made the original create button
 impossible to click at the only moment it existed.
 
+## Places with no name, and giving them one
+
+§3.2's second shape is deliberately poor: coordinates with no identity, nested inside the
+memory that recorded them, with **no URI** — not referenceable, not shareable, not searchable.
+That is the right default, because most places one stands in are nobody's business. S-33 is
+where the user says "this one is different", once, for the one that turns out to matter.
+
+Two operations, both in `lib/places.ts`:
+
+- `updateUnnamedLocation` — surgical, not the wholesale rewrite `updateMemory` does. The
+  screen is reached from a memory that is *not* being edited, so the other locations of that
+  memory and everything else in its document must come out untouched. The IRI is not rewritten
+  either: it is derived from a position (`<doc>#place-N`), and the memory's reference keeps
+  pointing at it.
+- `promoteLocation` — mints the document, then writes the place and repoints the memory in
+  **one `sparql_update` over both graphs** (Appendix A, B-06; spike 8). The alternative leaves
+  either a place nobody references or a memory pointing at a place that does not exist.
+  `doc_create` must come first — it is what produces the NURI the update names — so a failure
+  after it leaves an empty document and nothing else, which is inert rather than wrong.
+
+`owl:sameAs` is offered at promotion, which is the reconciliation §3.2 and B-04 ask for: when
+the place already has an identity in Wikidata or OSM, say so rather than claiming this app's
+URI is the first name it ever had. Minting is what you do when no external match exists.
+
+`make s33` drives both operations and asserts what the store holds after each — including that
+promotion leaves no orphan nested subject behind, the failure mode m3 already guards for the
+editor. It also removes the document promotion mints, which is the one step in this repo where
+a driver run creates a document that outlives the memory it came from.
+
+**Not built: S-31 → S-33, "edit a locally-owned place."** The screen handles unnamed locations
+only. Editing an identified place needs an answer to *which place documents may this app
+write*: a `did:ng` place document might have been minted here or by another application, and
+§5 forbids editing the second. Nothing in the store distinguishes them today, and guessing
+wrong means either refusing to edit our own places or writing into someone else's. That is a
+boundary question rather than a missing screen — a candidate Appendix A entry.
+
 ## Search, without an index
 
 S-02 is built on SPARQL alone (Appendix A, **B-08** stays open). The `search-probe`

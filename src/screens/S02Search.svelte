@@ -134,10 +134,7 @@
                 router.push(
                     isIdentified(h.id)
                         ? { name: "place", params: { iri: h.id } }
-                        : {
-                              name: "stub",
-                              params: { label: "Unnamed place editor (S-33)" },
-                          }
+                        : { name: "unnamedplace", params: { iri: h.id } }
                 );
                 break;
             case "person":

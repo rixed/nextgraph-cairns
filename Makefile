@@ -1,7 +1,7 @@
 # This is the entry point for every build task: package.json deliberately
 # carries no scripts, so the tools are invoked directly here.
 
-.PHONY: all help install build run dev test check orm e2e e2e-m1 e2e-m2 e2e-m3 e2e-m4 e2e-m5 e2e-m6 spike9 spike10 tagpicker siblings grouping search search-probe seed-media seed-clips seed-foreign seed-foreign-clean clean
+.PHONY: all help install build run dev test check orm e2e e2e-m1 e2e-m2 e2e-m3 e2e-m4 e2e-m5 e2e-m6 spike9 spike10 tagpicker siblings grouping search s33 search-probe seed-media seed-clips seed-foreign seed-foreign-clean clean
 
 PNPM = pnpm
 # Vite serves on this port for both dev and preview (see vite.config.ts).
@@ -30,6 +30,7 @@ help:
 	@echo '  - siblings: Drive S-20'"'"'s sibling sections end to end (idem)'
 	@echo '  - grouping: Drive S-22a'"'"'s grouping suggestions (idem)'
 	@echo '  - search: Drive S-02 end to end, no index (B-08) (idem)'
+	@echo '  - s33: Drive the unnamed-location editor and promotion (idem)'
 	@echo '  - search-probe: Measure what SPARQL can do for search (B-08)'
 	@echo '  - seed-media: Write COUNT fixture media documents into the'
 	@echo '         store, standing in for the applications that would'
@@ -116,6 +117,11 @@ grouping: node_modules
 # grouped by type and handed to S-22 as a filter. Self-cleaning.
 search: node_modules
 	node tools/browse.mjs search
+
+# S-33: edit an unnamed location, then promote it to a place of its own.
+# Self-cleaning, including the document promotion mints.
+s33: node_modules
+	node tools/browse.mjs s33
 
 # B-08: what free-text search can do with SPARQL alone. NEEDLE=... to vary it.
 NEEDLE = lisboa
