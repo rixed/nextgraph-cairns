@@ -431,6 +431,36 @@ worse than a missing one.
 The fix is one attribute in the embedding page, and it belongs to whoever owns that page
 (Appendix A, B-15).
 
+## Found while planning S-02 — what SPARQL alone can do for search (B-08)
+
+Not a spike; a `search-probe` step in the driver, run against the real store
+(2 083 triples: `make seed-foreign` plus the media fixture). Two needles — one rare, one in
+almost every literal.
+
+| Query | `lisboa` | `a` |
+|---|---|---|
+| Memories by title/narrative (`VALUES ?p` + `a app:Memory`) | 0 rows, **183 ms** | 10 rows, **201 ms** |
+| Every literal in the store (`isLiteral` + `CONTAINS`) | 2 rows, **57 ms** | 129 rows, **70 ms** |
+| The same by `REGEX(…, "i")` | 2 rows, 38 ms | 129 rows, **33 ms** |
+| Hits with their `rdf:type`, `GROUP BY` + `SAMPLE` | 2 rows, 26 ms | 134 rows, **26 ms** |
+| `STRSTARTS` prefix match on tag labels | 0 rows, 3 ms | 2 rows, **2 ms** |
+| Every triple, for scale | 2 083 rows, 25 ms | 2 083 rows, 19 ms |
+
+**S-02 is buildable with no index.** `CONTAINS`, `REGEX`, `STRSTARTS`, `LCASE`, `GROUP BY` and
+`SAMPLE` all work, and one query returns each hit **with its type**, so §6.2's "results grouped
+by type" is a single round-trip rather than one per result.
+
+- **The narrow query is the slow one.** Constraining to memories by `VALUES ?p` costs about 3×
+  the unconstrained scan of every literal. The planner does worse with the extra join than
+  without it, so "search everything, then classify" is both simpler and faster — and these
+  numbers are about query planning, not data volume.
+- **What is missing is ranking, not expressiveness.** No tokenisation, no stemming, no
+  relevance order, no snippets: `CONTAINS` is substring matching, so "walked" does not find
+  "walking", and results arrive in whatever order the engine chooses. That is what an index
+  would buy, and it is the reason B-08 stays open.
+- **These say "works", not "scales".** Every one of them is a full scan over a store small
+  enough that scanning is free.
+
 ## Environment notes
 
 - Wallets pin the broker's peer key: after `make reset`/re-key of the devstack, old

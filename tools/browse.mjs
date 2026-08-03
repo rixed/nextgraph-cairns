@@ -116,6 +116,40 @@ async function click(frame, label) {
     await frame.getByRole("button", { name: label }).click();
 }
 
+/**
+ * Pick an existing tag through the combobox (§3.5). `which` disambiguates the
+ * several on one screen — the filter bar's is first, the editor's or the bulk
+ * bar's is last.
+ */
+async function pickTag(frame, label, which = "last") {
+    // `:visible` because the shell keeps earlier screens of the stack mounted
+    // and hidden, each with its own picker — and everything below is scoped to
+    // the widget actually typed into. A global item locator matched an option
+    // in a different combobox, whose list was closed, and waited for it to
+    // become visible until it timed out.
+    const boxes = frame.locator(
+        'input[placeholder="tag, or portugal/sintra"]:visible'
+    );
+    const box = which === "first" ? boxes.first() : boxes.last();
+    const root = box.locator(
+        'xpath=ancestor::*[@data-part="root"][@data-scope="combobox"][1]'
+    );
+    await box.click();
+    await box.fill("");
+    // Typed, not filled: the list opens on keystrokes, and `fill` sets the
+    // value without any.
+    await box.pressSequentially(label, { delay: 30 });
+    await frame.page().waitForTimeout(800);
+    // The option carries the full path; an exact match on a top-level tag is
+    // its label.
+    await root
+        .locator('[data-scope="combobox"][data-part="item"]')
+        .filter({ hasText: new RegExp(`^${label}$`) })
+        .first()
+        .click();
+    await frame.page().waitForTimeout(500);
+}
+
 /** Read the spike log <pre> content. */
 async function readLog(frame) {
     return await frame.evaluate(
@@ -268,11 +302,7 @@ try {
         await f.getByPlaceholder("One line, shown in lists").fill(
             "Living in the van"
         );
-        // Scoped to the dropdown: the shell keeps the screen below this one
-        // mounted (hidden), and its tag chips carry the same labels.
-        const editorTags = f.locator("details.dropdown").last();
-        await editorTags.locator("summary").click();
-        await editorTags.getByText("van-year", { exact: true }).click();
+        await pickTag(f, "van-year");
         await f.getByRole("button", { name: "Save", exact: true }).click();
         await page.waitForTimeout(3000);
         let txt = await f.evaluate(() => document.body.innerText);
@@ -483,6 +513,13 @@ try {
         await waitSynced(f);
         await page.waitForTimeout(2000);
         const TITLE = "M3 place test";
+        // Idempotent: a run that crashes before its cleanup leaves a memory
+        // behind, and the orphan check below then counts two places and calls
+        // it a regression. Start from nothing, as m6 does.
+        if (await titleCount(f, TITLE)) {
+            const left = await deleteDownTo(page, f, TITLE, 0);
+            console.log(`[pre-clean] "${TITLE}" left over from before, now ${left}`);
+        }
         const before = await titleCount(f, TITLE);
 
         console.log("=== capture a memory with a dropped pin ===");
@@ -584,13 +621,8 @@ try {
         await waitSynced(f);
         await f.getByRole("button", { name: /^Filter/ }).click();
         await f.getByLabel("has photographs").check();
-        // Scoped to the dropdown: the same label appears as a tag chip on the
-        // rows below, where clicking it would select a memory instead.
-        const filterTags = f.locator("details.dropdown").first();
-        await filterTags.locator("summary").click();
-        await filterTags.getByText("van-year", { exact: true }).click();
-        // Closed again: an open dropdown covers what is under it.
-        await filterTags.locator("summary").click();
+        // The filter bar's picker is the first on the screen.
+        await pickTag(f, "van-year", "first");
         await page.waitForTimeout(1500);
         txt = await f.evaluate(() => document.body.innerText);
         const narrowed = txt.match(/(\d+) of (\d+) memories/);
@@ -640,10 +672,7 @@ try {
         }, TITLE);
         await page.waitForTimeout(500);
         await f.getByRole("button", { name: "Tag these" }).click();
-        const bulkTags = f.locator("details.dropdown").last();
-        await bulkTags.locator("summary").click();
-        await bulkTags.getByText("portugal", { exact: true }).click();
-        await bulkTags.locator("summary").click();
+        await pickTag(f, "portugal");
         console.log(
             "[selection]",
             await f.evaluate(
@@ -1619,6 +1648,206 @@ try {
                     : `FAIL: ${finally_} recommendation(s) left in the store`
             );
         }
+    } else if (step === "tagpicker") {
+        // The tag combobox (§3.5, §5): completion scoped to a parent, and
+        // creation of a path that does not exist yet. Self-cleaning.
+        const f = await loginAndGetFrame(page);
+        await settle(f);
+
+        const countProbes = () =>
+            f.evaluate(() =>
+                window
+                    .spikeSelect(
+                        `PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+                         SELECT ?c WHERE { GRAPH ?g {
+                            ?c a skos:Concept ; skos:prefLabel ?l .
+                            FILTER(STRSTARTS(?l, "probe-")) } }`
+                    )
+                    .then((r) => r.length)
+            );
+        const wipeProbes = () =>
+            f.evaluate(() =>
+                window.spikeUpdate(
+                    `PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+                     DELETE { GRAPH ?g { ?c ?p ?o } } WHERE { GRAPH ?g {
+                        ?c a skos:Concept ; skos:prefLabel ?l ; ?p ?o .
+                        FILTER(STRSTARTS(?l, "probe-")) } }`,
+                    undefined
+                )
+            );
+        if (await countProbes()) {
+            await wipeProbes();
+            await page.waitForTimeout(2000);
+            console.log("[pre-clean] removed probe tags left over from before");
+        }
+
+        await f.evaluate(() => (location.hash = "#/new"));
+        await page.waitForTimeout(3000);
+
+        const box = f
+            .locator('input[placeholder="tag, or portugal/sintra"]')
+            .last();
+        const options = () =>
+            f.evaluate(() =>
+                [
+                    ...document.querySelectorAll(
+                        '[data-scope="combobox"][data-part="item"]'
+                    ),
+                ].map((e) => e.textContent.trim())
+            );
+
+        await box.click();
+        await box.fill("por");
+        await page.waitForTimeout(800);
+        const matched = await options();
+        console.log(
+            matched.some((o) => /port/i.test(o))
+                ? `OK: typing matches existing tags (${matched.length} offered)`
+                : `FAIL: no completion for "por": ${JSON.stringify(matched)}`
+        );
+        await shot(page, "tagpicker-completing");
+
+        // Creating a path: neither segment exists, so both are appended.
+        await box.fill("probe-parent/probe-child");
+        await page.waitForTimeout(800);
+        // Creating is a row of the list, not a button beside it — the open
+        // listbox used to cover the button entirely.
+        await f
+            .locator('[data-scope="combobox"][data-part="item"]')
+            .filter({ hasText: /create/ })
+            .first()
+            .click();
+        await page.waitForTimeout(4000);
+
+        const after = await f.evaluate(() => document.body.innerText);
+        console.log(
+            /probe-parent\/probe-child/.test(after)
+                ? "OK: a new path is created and selected, shown whole"
+                : `FAIL: no path chip:\n${after.slice(0, 300)}`
+        );
+        console.log(`[store] ${await countProbes()} probe concept(s) written`);
+
+        // Typing the same path again must offer it, not offer to make a second
+        // one — the append-only licence of §5 cuts both ways.
+        await box.click();
+        await box.fill("probe-parent/probe-child");
+        await page.waitForTimeout(1000);
+        const again = await options();
+        console.log(
+            !again.some((o) => /create/.test(o))
+                ? "OK: an existing path is never offered for creation twice"
+                : `FAIL: offered to create a duplicate: ${JSON.stringify(again)}`
+        );
+
+        // Drop it from the selection first: a tag already applied is
+        // deliberately not offered again, so leaving it selected would test
+        // that rule rather than the completion.
+        // Escape first: an open listbox covers whatever is around it, and a
+        // real user closes it the same way.
+        await box.press("Escape");
+        await page.waitForTimeout(500);
+        await f.getByLabel("Remove this tag").first().click();
+        await page.waitForTimeout(800);
+
+        // The parent now completes: this is the point of the hierarchy.
+        await box.click();
+        await box.fill("probe-parent/");
+        await page.waitForTimeout(1000);
+        const children = await options();
+        console.log(
+            children.some((o) => o.includes("probe-child"))
+                ? "OK: the new parent completes its children"
+                : `FAIL: parent offers ${JSON.stringify(children)}`
+        );
+        await shot(page, "tagpicker-scoped");
+
+        await wipeProbes();
+        await page.waitForTimeout(2000);
+        console.log(`[cleanup] probe concepts back to ${await countProbes()}`);
+    } else if (step === "search-probe") {
+        // B-08: what can free-text search (S-02) do with SPARQL alone, before
+        // anyone builds an index? Read-only — this writes nothing.
+        const f = await loginAndGetFrame(page);
+        await settle(f);
+
+        const needle = process.argv[3] ?? "lisboa";
+        const run = async (label, query) => {
+            const r = await f.evaluate(
+                async ([q]) => {
+                    const t0 = performance.now();
+                    try {
+                        const rows = await window.spikeSelect(q);
+                        return { ms: performance.now() - t0, n: rows.length };
+                    } catch (e) {
+                        return { ms: performance.now() - t0, error: String(e) };
+                    }
+                },
+                [query]
+            );
+            console.log(
+                `[${label}] ${r.error ? "ERROR " + r.error.slice(0, 160) : `${r.n} rows`} in ${Math.round(r.ms)} ms`
+            );
+            return r;
+        };
+
+        const P = `PREFIX schema: <https://schema.org/>
+                   PREFIX app: <did:ng:z:cairns/>
+                   PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+                   PREFIX foaf: <http://xmlns.com/foaf/0.1/>`;
+
+        // 1. The narrow case: this app's own memories, by title and narrative.
+        await run(
+            "memories by title/narrative",
+            `${P} SELECT ?s ?o WHERE { GRAPH ?g {
+                ?s a app:Memory ; ?p ?o .
+                VALUES ?p { schema:name schema:text schema:description }
+                FILTER(CONTAINS(LCASE(STR(?o)), "${needle}"))
+             } }`
+        );
+
+        // 2. The whole point of S-02: every literal in the store, whoever
+        //    wrote it. This is the query an index would replace.
+        await run(
+            "every literal in the store",
+            `SELECT ?g ?s ?p ?o WHERE { GRAPH ?g {
+                ?s ?p ?o .
+                FILTER(isLiteral(?o) && CONTAINS(LCASE(STR(?o)), "${needle}"))
+             } }`
+        );
+
+        // 3. Does REGEX work, and what does it cost against CONTAINS?
+        await run(
+            "same, by REGEX",
+            `SELECT ?s WHERE { GRAPH ?g {
+                ?s ?p ?o .
+                FILTER(isLiteral(?o) && REGEX(STR(?o), "${needle}", "i"))
+             } }`
+        );
+
+        // 4. §6.2 wants results grouped by type. Can one query say what each
+        //    hit is, so the grouping is not a second round-trip per result?
+        await run(
+            "hits with their type",
+            `${P} SELECT ?s ?type (SAMPLE(?o) AS ?snippet) WHERE { GRAPH ?g {
+                ?s ?p ?o ; a ?type .
+                FILTER(isLiteral(?o) && CONTAINS(LCASE(STR(?o)), "${needle}"))
+             } } GROUP BY ?s ?type`
+        );
+
+        // 5. A prefix match, which is what a type-ahead actually needs.
+        await run(
+            "prefix match on tag labels",
+            `${P} SELECT ?c ?l WHERE { GRAPH ?g {
+                ?c a skos:Concept ; skos:prefLabel ?l .
+                FILTER(STRSTARTS(LCASE(?l), "${needle.slice(0, 3)}"))
+             } }`
+        );
+
+        // 6. Scale of what any of this walks.
+        await run(
+            "every triple (for scale)",
+            `SELECT ?s WHERE { GRAPH ?g { ?s ?p ?o } }`
+        );
     } else if (step === "spike10") {
         // Recommendations live many-to-a-document and that document is mutated
         // for the rest of its life. Does a live subscription notice a sibling

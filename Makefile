@@ -1,7 +1,7 @@
 # This is the entry point for every build task: package.json deliberately
 # carries no scripts, so the tools are invoked directly here.
 
-.PHONY: all help install build run dev test check orm e2e e2e-m1 e2e-m2 e2e-m3 e2e-m4 e2e-m5 e2e-m6 spike9 spike10 seed-media seed-clips seed-foreign seed-foreign-clean clean
+.PHONY: all help install build run dev test check orm e2e e2e-m1 e2e-m2 e2e-m3 e2e-m4 e2e-m5 e2e-m6 spike9 spike10 tagpicker search-probe seed-media seed-clips seed-foreign seed-foreign-clean clean
 
 PNPM = pnpm
 # Vite serves on this port for both dev and preview (see vite.config.ts).
@@ -26,6 +26,8 @@ help:
 	@echo '         `make run` or `make dev`'
 	@echo '  - spike9: Drive the MapLibre spike (needs the devstack too)'
 	@echo '  - spike10: Drive the list-document spike (idem)'
+	@echo '  - tagpicker: Drive the tag combobox end to end (idem)'
+	@echo '  - search-probe: Measure what SPARQL can do for search (B-08)'
 	@echo '  - seed-media: Write COUNT fixture media documents into the'
 	@echo '         store, standing in for the applications that would'
 	@echo '         normally have taken the pictures (default 40)'
@@ -91,6 +93,16 @@ spike9: node_modules
 
 spike10: node_modules
 	node tools/browse.mjs spike10
+
+# The tag combobox, end to end: completion scoped to a parent, and creation of
+# a path that does not exist yet. Self-cleaning.
+tagpicker: node_modules
+	node tools/browse.mjs tagpicker
+
+# B-08: what free-text search can do with SPARQL alone. NEEDLE=... to vary it.
+NEEDLE = lisboa
+search-probe: node_modules
+	node tools/browse.mjs search-probe $(NEEDLE)
 
 # Cairns never writes a media document; this fixture plays the app that would.
 COUNT = 40

@@ -125,3 +125,24 @@ permissions policy"* — because the embedding page does not set `allow="geoloca
 `<iframe>`. Nothing in Cairns can change that (Appendix A, B-15). Everything that needs a
 position is conditional, so the screens read as they do indoors; `make e2e-m6` probes for a
 position and prints `SKIP` rather than `OK` for the assertions that need one.
+
+## Tags
+
+The vocabulary belongs to whichever application manages it; Cairns may only append (§5), and
+`lib/tags.ts` is where that licence is honoured — nothing renames, merges, deletes or
+re-parents, including concepts this app wrote.
+
+Hierarchy is `skos:broader`, written for the first time here. The user types a path,
+`portugal/sintra`; what is stored is the *segment* as `skos:prefLabel` plus a `broader` link,
+so another application reads ordinary SKOS rather than a string convention. The path is a user
+interface, the tree is the data — and the separator lives in one file (`lib/tagPaths.ts`), at
+the price of not being able to write a tag whose label contains a slash.
+
+Completion is scoped: `portugal/li` offers Portugal's children, never `food/lisboa`. That is
+what makes two hundred tags navigable. `make tagpicker` drives it end to end and cleans up
+after itself.
+
+Two layout rules the widget learned the hard way, both worth keeping: **creating is a row
+inside the list**, not a button beneath it, and **the selected chips go above the input** —
+the listbox opens downward and covers anything below it, which made the original create button
+impossible to click at the only moment it existed.
