@@ -847,8 +847,19 @@ live in Appendix A instead.
 1. **Recurrence** via `schema:eventSchedule` is specified but not designed. A Sunday market
    needs a rule for "when is the next occurrence" that Here-and-Now can evaluate cheaply.
    Simplest first cut: support only single-interval events, treat recurrence as free text.
-2. **Grouping suggestions** need a clustering rule — gap threshold, distance from a frequent
-   place, minimum member count.
+2. **Grouping suggestions** needed a clustering rule — gap threshold, distance from a frequent
+   place, minimum member count. First cut, in use since S-22a was built: a run grows while the
+   next memory starts within **36 hours** of the last one ending — at most one empty day — and,
+   when both know where they were, within **50 km** of the *previous* member rather than the
+   first, so a trip down a coast stays one episode though its ends are far apart. **Three**
+   members minimum. The frequent place is the identified place the most memories name, needing
+   at least **three** of them, and a run every placed member of which lies within **25 km** of
+   it is ordinary life rather than a trip, so it is not proposed. An archive with no centre —
+   the nomadic case this app is for — has no frequent place, and then every run is proposed.
+   A memory with no location joins on time alone: absence is not evidence of being somewhere
+   else (§1.3.15). Open still: whether these numbers survive an archive of real size, and
+   whether "frequent place" should be seasonal — a winter base and a summer one are two
+   centres, and this rule knows only one.
 3. **Enumerated tag grants** (P1) do not retroactively include memories tagged after the
    grant. Acceptable, or does a shared tag set need a container of its own — which would make
    it an object again, and reopen the grouping decision?
@@ -883,7 +894,7 @@ than the fact that it was.
 | **B-05** | Deletion, recovery, and version history | The framework | None. Deletion is plainly destructive until recovery exists | Zero, unverified | **Assigned** to the framework (§1.2), which is why S-77 was removed |
 | **B-06** | Atomic or best-effort writes across many documents | The framework SDK | None needed — one `sparql_update` naming every graph, used by bare-name promotion (§3.3) and place promotion (S-33) | None: the capability exists | **Decided** — spike 8: a multi-graph update is rejected whole (nothing written) where a per-document loop leaves a split archive. Read isolation is *not* provided: a subscription watches a 200-document promotion happen |
 | **B-07** | Access grants: granularity, itemisation, and partial-failure semantics | The framework | None — P1 depends on it entirely | Blocking for P1 | **Open** |
-| **B-08** | Full-text search across a user's documents | The framework; a per-app index; an indexing service | Per-app index over discovered documents | Unknown; likely the largest stopgap in the app | **Open** — S-02 assumes this exists |
+| **B-08** | Full-text search across a user's documents: tokenisation, stemming, relevance ranking | The framework; a per-app index; an indexing service | None, and none needed to *find* things: one SPARQL query over every literal, classified by the app (§6.2, S-02) | Low to build — about 150 lines and no index at all. The cost is in what it cannot do | **Open** — S-02 is built and works without it. What is missing is **ranking, not expressiveness**: `CONTAINS` is substring matching, so "walked" does not find "walking"; there is no relevance order, so results are ordered by time; and no snippets beyond the literal that matched. Measured against a 2 083-triple store, where a full scan is free — these numbers say *works*, not *scales*. Two findings for whoever owns this: constraining the query to one type costs about **3×** the unconstrained scan, so "search everything, then classify" is both simpler and faster; and one query can return each hit with its types, so grouping by type needs no second round-trip |
 | **B-09** | SUPPRESSED |
 | **B-10** | A convention for temporal precision | Ecosystem-wide convention; each app independently | Cairn's own datatype convention (§3.1) | Low, but divergence is costly later | **Open** — if the expense and hiking apps cannot express `gYear`, joins across apps degrade quietly |
 | **B-11** | Joining documents by time and location overlap | The framework as a query capability; each app | Cairn computes its own overlaps for media, bookings, expenses, tracks (§5) | Moderate and repeated per domain | **Open** — the repetition is itself the argument |
