@@ -104,7 +104,6 @@ app owns.
 | Tags | `dcterms:subject` → `skos:Concept` | **The primary grouping**, §3.5 |
 | Media | `schema:subjectOf` → foreign `schema:ImageObject` etc. | References only; §3.4 |
 | Prompted by | prov:wasInfluencedBy → app:Recommendation × 0..N | Optional, fulfill that recommendation |
-| Rating | `schema:review` → `schema:Review` | Optional, nested |
 | Public event | `schema:about` → `schema:Event` × 0..N | Optional, §4.3 |
 | Cover | `schema:image` | Optional; a reference to one of its media |
 | Provenance | `prov:wasGeneratedBy` | Only when the memory was derived from another document |
@@ -375,8 +374,7 @@ Ana suggested it, and recurring events come round again.
 ### 4.3 Memories about public events
 
 A memory may reference public events with `schema:about`. This groups every time the user
-attended the same recurring thing, across years, without needing a tag — a second
-grouping mechanism that costs nothing because the event document already exists.
+attended the same recurring thing, across years, without needing a tag.
 
 ### 4.4 Selection and bulk actions
 
@@ -497,7 +495,7 @@ becomes a bulk tagging operation.
 
 **S-20 Memory detail** — P0
 Title or date as heading; date at stored precision; narrative; locations; attendees; tags;
-media; rating. Locations link to S-31 when identified, or show an inline map when unnamed.
+media. Locations link to S-31 when identified, or show an inline map when unnamed.
 Recommendations that prompted this memory, with the note and who gave it.
 Attendees link to S-61 when contacts, or offer promotion when bare names. A public-event
 reference links to S-34.
@@ -511,7 +509,7 @@ or about the same public event.
 The most-used surface, one tap from S-01. Only a date is required, defaulting to now at day
 precision. Optional: title, narrative, date with precision selector, locations (0..N —
 identified via S-32 or a dropped pin), attendees (0..N — contacts or typed names), tags,
-media, rating, public event (0..N — from discovered public events).
+media, public event (0..N — from discovered public events).
 
 Media are **selected, not uploaded**: a picker over the user's discoverable media documents,
 pre-filtered to the memory's span and location and showing what would be associated by
