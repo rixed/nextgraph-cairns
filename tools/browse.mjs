@@ -1764,6 +1764,189 @@ try {
         await wipeProbes();
         await page.waitForTimeout(2000);
         console.log(`[cleanup] probe concepts back to ${await countProbes()}`);
+    } else if (step === "siblings") {
+        // S-20's sibling sections (§6.2): two memories that share a person and
+        // a tag find each other, and tapping one opens it. Self-cleaning — the
+        // two memories and the concept they share all go back.
+        const f = await loginAndGetFrame(page);
+        await settle(f);
+
+        const TITLES = ["Sibling probe A", "Sibling probe B"];
+        const WHO = "Sibling Probe Companion";
+        const TAG = "probe-sib";
+
+        const countProbes = () =>
+            f.evaluate(() =>
+                window
+                    .spikeSelect(
+                        `PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+                         SELECT ?c WHERE { GRAPH ?g {
+                            ?c a skos:Concept ; skos:prefLabel ?l .
+                            FILTER(STRSTARTS(?l, "probe-")) } }`
+                    )
+                    .then((r) => r.length)
+            );
+        const wipeProbes = () =>
+            f.evaluate(() =>
+                window.spikeUpdate(
+                    `PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+                     DELETE { GRAPH ?g { ?c ?p ?o } } WHERE { GRAPH ?g {
+                        ?c a skos:Concept ; skos:prefLabel ?l ; ?p ?o .
+                        FILTER(STRSTARTS(?l, "probe-")) } }`,
+                    undefined
+                )
+            );
+        // As m3 does: residue from a crashed run would make the counts below
+        // describe memories this run never created.
+        for (const t of TITLES)
+            if (await titleCount(f, t)) {
+                const left = await deleteDownTo(page, f, t, 0);
+                console.log(`[pre-clean] "${t}" left over from before, now ${left}`);
+            }
+        if (await countProbes()) {
+            await wipeProbes();
+            await page.waitForTimeout(2000);
+            console.log("[pre-clean] removed probe tags left over from before");
+        }
+
+        console.log("=== two memories sharing a companion and a tag ===");
+        for (const [i, title] of TITLES.entries()) {
+            // Through the archive's own button, not `location.hash = "#/new"`:
+            // saving pushes the detail screen, so popping back leaves the hash
+            // at `#/new` already — assigning it again fires no hashchange, the
+            // stack is never reset, and the second memory would be written in
+            // the first one's editor, with its chips still in it.
+            await f.evaluate(() => (location.hash = "#/"));
+            await page.waitForTimeout(2500);
+            await f.getByLabel("Capture a memory").click();
+            await page.waitForTimeout(1500);
+            await f.getByPlaceholder("Optional").fill(title, { timeout: 60000 });
+            await f.getByPlaceholder("A name, or someone you know").fill(WHO);
+            await f.getByRole("button", { name: "add", exact: true }).click();
+            const box = f
+                .locator('input[placeholder="tag, or portugal/sintra"]:visible')
+                .last();
+            const root = box.locator(
+                'xpath=ancestor::*[@data-part="root"][@data-scope="combobox"][1]'
+            );
+            // The first memory mints the concept; the second picks the one
+            // that now exists, which is also what proves the two agree on it.
+            const want = i === 0 ? /create/ : new RegExp(`^${TAG}$`);
+            // Retried, because the second editor is waiting on a document the
+            // first one has only just written: the concept reaches the
+            // subscription when it syncs, not when Save returns.
+            for (let tries = 0; ; tries++) {
+                await box.click();
+                await box.fill("");
+                await box.pressSequentially(TAG, { delay: 30 });
+                await page.waitForTimeout(1500);
+                const item = root
+                    .locator('[data-scope="combobox"][data-part="item"]')
+                    .filter({ hasText: want })
+                    .first();
+                if (await item.count()) {
+                    await item.click();
+                    break;
+                }
+                if (tries === 5) {
+                    await shot(page, "siblings-picker");
+                    throw new Error(
+                        `the picker never offered ${want}: root=${await root.count()} ` +
+                            `value=${JSON.stringify(await box.inputValue())} ` +
+                            `scoped=${JSON.stringify(
+                                await root
+                                    .locator(
+                                        '[data-scope="combobox"][data-part="item"]'
+                                    )
+                                    .allInnerTexts()
+                            )} global=${JSON.stringify(
+                                await f
+                                    .locator(
+                                        '[data-scope="combobox"][data-part="item"]'
+                                    )
+                                    .allInnerTexts()
+                            )}`
+                    );
+                }
+                await page.waitForTimeout(5000);
+            }
+            await page.waitForTimeout(i === 0 ? 4000 : 1500);
+            await f.getByRole("button", { name: "Save", exact: true }).click();
+            await page.waitForTimeout(4000);
+        }
+
+        console.log("=== the first memory finds the second ===");
+        await f.evaluate(() => (location.hash = "#/"));
+        await page.waitForTimeout(3000);
+        console.log(
+            "[archive]",
+            (await titleCount(f, TITLES[0])) === 1 &&
+                (await titleCount(f, TITLES[1])) === 1
+                ? "both memories are in the archive"
+                : `FAIL: A×${await titleCount(f, TITLES[0])} B×${await titleCount(f, TITLES[1])}`
+        );
+        await f.evaluate((t) => {
+            const rows = [...document.querySelectorAll("li button")].filter(
+                (b) => b.querySelector(".font-medium")?.textContent.trim() === t
+            );
+            rows[0].click();
+        }, TITLES[0]);
+        // Polled: the sibling sections are derived from a subscription that
+        // may still be delivering (§8, "partially loaded"), and a memory that
+        // arrives a second late is not a failure.
+        let txt = "";
+        for (let i = 0; i < 12; i++) {
+            await page.waitForTimeout(2500);
+            txt = await f.evaluate(() => document.body.innerText);
+            if (txt.includes("Also with") && txt.includes("Also tagged")) break;
+        }
+        console.log(
+            txt.includes(`Also with ${WHO}`)
+                ? "OK: the person facet groups them (bare names merged by name)"
+                : `FAIL: no person group:\n${txt.slice(0, 600)}`
+        );
+        console.log(
+            txt.includes(`Also tagged ${TAG}`)
+                ? "OK: the tag facet groups them"
+                : `FAIL: no tag group:\n${txt.slice(0, 600)}`
+        );
+        // Both groups name the same memory once each — the section is a list
+        // of reasons, not of duplicate memories.
+        const mentions = (txt.match(new RegExp(TITLES[1], "g")) ?? []).length;
+        console.log(
+            mentions === 2
+                ? "OK: each group names it once (two groups, two rows)"
+                : `FAIL: "${TITLES[1]}" appears ${mentions} times`
+        );
+
+        await shot(page, "siblings-sections");
+
+        console.log("=== tapping a sibling opens it ===");
+        await f
+            .getByRole("button", { name: new RegExp(`^${TITLES[1]}`) })
+            .first()
+            .click();
+        await page.waitForTimeout(2500);
+        txt = await f.evaluate(() => document.body.innerText);
+        console.log(
+            /Sibling probe B/.test(txt) && txt.includes("Also with")
+                ? "OK: S-20 → S-20, and the sibling has siblings of its own"
+                : `FAIL: after the tap:\n${txt.slice(0, 600)}`
+        );
+
+        if (process.env.KEEP) {
+            console.log("(KEEP set: leaving the probe memories behind)");
+        } else {
+            for (const t of TITLES) await cleanUp(page, f, t, 0);
+            await wipeProbes();
+            await page.waitForTimeout(2000);
+            const left = await countProbes();
+            console.log(
+                left === 0
+                    ? "[cleanup] probe concepts back to 0"
+                    : `FAIL: ${left} probe concept(s) left in the store`
+            );
+        }
     } else if (step === "search-probe") {
         // B-08: what can free-text search (S-02) do with SPARQL alone, before
         // anyone builds an index? Read-only — this writes nothing.

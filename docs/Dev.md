@@ -152,3 +152,35 @@ Two layout rules the widget learned the hard way, both worth keeping: **creating
 inside the list**, not a button beneath it, and **the selected chips go above the input** —
 the listbox opens downward and covers anything below it, which made the original create button
 impossible to click at the only moment it existed.
+
+## Sibling memories
+
+S-20's last sections (§6.2): the other memories at the same place, with the same people,
+sharing tags, or about the same public event. `lib/siblings.ts` derives them and stores
+nothing (§1.3.16) — a sibling relation is an equality between two memories' references, so it
+is recomputed from whatever has synced, and a place that has not arrived yet produces no group
+rather than a wrong one. `make siblings` drives it end to end and cleans up after itself.
+
+One group per shared *value*, not per facet, so the heading can say which thing is shared and
+tapping it can hand the rest to the screen that already lists them — S-31 for a place, S-61
+for a person, the archive filtered for a tag. A public event has nowhere to go until S-34
+exists, so an event group shows all its members instead of an overflow link.
+
+Two deliberate narrowings, both in `keysOf`: **unnamed locations are skipped**, because a
+dropped pin lives in its own memory's document as `<doc>#place-N` and its IRI could never
+equal another memory's — that is S-22b's business, where proximity is visible; and **tags
+match exactly, not up the hierarchy**, because otherwise every memory in Portugal would be a
+sibling of every other. People are the exception that must be broad: they match on `personKey`,
+so a companion is one person whether or not their bare names have been promoted (§3.3).
+
+### Two traps in the driver, worth knowing before writing the next step
+
+**`location.hash = "#/new"` when the hash is already `#/new` fires no `hashchange`** — so the
+router never resets and the screen is not remade. Saving pushes S-20, popping back leaves the
+hash at `#/new`, and the next "new" memory was being written in the previous one's editor,
+with its chips still in it. Capture through the archive's own button, as `m1`/`m3`/`m4` do.
+
+**`vite preview` serves `dist/`, not the sources.** A step that asserts on a screen you have
+just written will fail against a stale bundle in a way that looks exactly like a logic bug —
+no error, no crash, just a section that renders nothing. `make build` first, or serve with
+`make dev`.

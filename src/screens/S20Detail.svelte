@@ -35,6 +35,7 @@
     import { router } from "../lib/router.svelte";
     import TagChips from "../components/TagChips.svelte";
     import MediaStrip from "../components/MediaStrip.svelte";
+    import SiblingSections from "../components/SiblingSections.svelte";
 
     const doc = router.current.params!.doc;
     const memories = useShape(MemoryShapeType, "did:ng:i");
@@ -324,6 +325,17 @@
                 {/each}
             </div>
         {/if}
+
+        <!-- Last, and after the foreign sections: everything above is what
+             this memory says, this is what it turns out to have in common
+             (§6.2). -->
+        <SiblingSections
+            memory={memory as unknown as Memory}
+            all={[...memories] as unknown as Memory[]}
+            places={places.all}
+            people={people.all}
+            events={events.all}
+        />
 
         <div class="flex gap-2 mt-4">
             <button
