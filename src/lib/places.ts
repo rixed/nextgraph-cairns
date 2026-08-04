@@ -18,6 +18,7 @@
 import { useShape } from "@ng-org/orm/svelte";
 import { OrmSubscription, normalizeScope } from "@ng-org/orm";
 import { sessionPromise } from "./ngSession";
+import { oneEach } from "./identity";
 import { PlaceShapeType } from "../shapes/orm/placeShape.shapeTypes";
 import type { Place as PlaceShape } from "../shapes/orm/placeShape.typings";
 import {
@@ -62,7 +63,13 @@ export function useAllPlaces() {
     const places = useShape(PlaceShapeType, "did:ng:i");
     return {
         get all(): Place[] {
-            return ([...places] as unknown as PlaceShape[]).map(toPlace);
+            // One entry per place, whatever the store says twice: a gazetteer's
+            // place and another application's record of it are one place here,
+            // which is what `findPlace` already assumes (lib/identity.ts).
+            return oneEach(
+                ([...places] as unknown as PlaceShape[]).map(toPlace),
+                (p) => p.id
+            );
         },
     };
 }
@@ -106,6 +113,33 @@ export function formatCoords(lat: number, lon: number): string {
 
 export function findPlace(all: Place[], iri: string): Place | undefined {
     return all.find((p) => p.id === iri);
+}
+
+/**
+ * The chain containing a place, outermost last — Alfama → Lisboa → Portugal
+ * (§6.2, S-31). Each step is a place of its own and opens as one.
+ *
+ * A place already seen ends the walk. Foreign data is free to say that Lisboa
+ * is in Alfama as well, and a cycle then repeats a step forever — or, once the
+ * walk is bounded, repeats it twice, which is enough to hand a keyed list the
+ * same key twice and take the screen down. Stopping at the repeat shows the
+ * chain as far as it makes sense and no further, which is `segmentsOf`'s rule
+ * for tag paths applied to somewhere else's containment.
+ */
+export function containingChain(
+    all: Place[],
+    iri: string
+): { iri: string; label: string }[] {
+    const out: { iri: string; label: string }[] = [];
+    const seen = new Set<string>([iri]);
+    let at = findPlace(all, iri)?.containedIn;
+    while (at && !seen.has(at)) {
+        seen.add(at);
+        const p = findPlace(all, at);
+        out.push({ iri: at, label: placeLabel(p, at) });
+        at = p?.containedIn;
+    }
+    return out;
 }
 
 /**

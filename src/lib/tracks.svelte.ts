@@ -6,6 +6,7 @@
 // subscription for one string. `make seed-foreign` writes some.
 
 import { select } from "./query";
+import { oneEach } from "./identity";
 
 export interface Track {
     id: string;
@@ -46,15 +47,20 @@ export async function loadTracks(): Promise<Track[]> {
             OPTIONAL { ?s schema:endDate ?to }
          } }`
     );
-    return rows
-        .map((b: any) => ({
-            id: b.s.value,
-            name: b.n?.value,
-            line: parseWkt(b.w.value),
-            startMs: ms(b.from?.value),
-            endMs: ms(b.to?.value),
-        }))
-        .filter((t) => t.line.length > 1);
+    // One row per WKT literal, and per document describing the geometry: a
+    // track carrying two of either is one track (lib/identity.ts).
+    return oneEach(
+        rows
+            .map((b: any) => ({
+                id: b.s.value,
+                name: b.n?.value,
+                line: parseWkt(b.w.value),
+                startMs: ms(b.from?.value),
+                endMs: ms(b.to?.value),
+            }))
+            .filter((t) => t.line.length > 1),
+        (t) => t.id
+    );
 }
 
 /**

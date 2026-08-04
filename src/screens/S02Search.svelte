@@ -240,7 +240,10 @@
                 {KIND_LABELS[g.kind]} · {g.hits.length}
             </h2>
             <ul class="flex flex-col">
-                {#each g.hits as h (h.id)}
+                <!-- Keyed by document *and* subject, because the query groups
+                     by both: one subject described in two documents is two
+                     hits, and both are in the store the user asked about. -->
+                {#each g.hits as h (`${h.graph}|${h.id}`)}
                     <li>
                         <button
                             class="w-full text-left py-1 px-1 rounded hover:bg-base-200 disabled:hover:bg-transparent"

@@ -22,6 +22,7 @@
     import { useShape } from "@ng-org/orm/svelte";
     import { ConceptShapeType } from "../shapes/orm/tagShape.shapeTypes";
     import { ensurePath } from "../lib/tags";
+    import { oneEach } from "../lib/identity";
     import {
         completions,
         isNew,
@@ -43,13 +44,19 @@
     // object as soon as it matches, and the remaining triples follow (§8,
     // "partially loaded"). One with no label yet is not offerable, but it is
     // still a parent other concepts point at, so it stays in the tree.
+    // One entry per concept: a vocabulary two documents both describe is one
+    // vocabulary, and the list below is keyed by the concept's IRI
+    // (lib/identity.ts).
     const all = $derived(
-        [...concepts].map(
-            (c): Concept => ({
-                id: c["@id"],
-                label: c.prefLabel ?? "",
-                broader: [...(c.broader ?? [])][0],
-            })
+        oneEach(
+            [...concepts].map(
+                (c): Concept => ({
+                    id: c["@id"],
+                    label: c.prefLabel ?? "",
+                    broader: [...(c.broader ?? [])][0],
+                })
+            ),
+            (c) => c.id
         )
     );
 

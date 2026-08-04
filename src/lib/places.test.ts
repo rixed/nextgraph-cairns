@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    containingChain,
     coordTriples,
     draftOf,
     isIdentified,
@@ -65,6 +66,49 @@ describe("isWithin", () => {
     it("terminates on a cycle", () => {
         const cyclic = [place("a", { containedIn: "b" }), place("b", { containedIn: "a" })];
         expect(isWithin(cyclic, "a", "elsewhere")).toBe(false);
+    });
+});
+
+describe("containingChain", () => {
+    const all = [
+        place("beach", { name: "the beach", containedIn: "lisbon" }),
+        place("lisbon", { name: "Lisboa", containedIn: "portugal" }),
+        place("portugal", { name: "Portugal" }),
+    ];
+
+    it("walks outwards, and does not include the place itself", () => {
+        expect(containingChain(all, "beach").map((s) => s.iri)).toEqual([
+            "lisbon",
+            "portugal",
+        ]);
+        expect(containingChain(all, "portugal")).toEqual([]);
+    });
+
+    it("labels a step that has not synced without dropping it", () => {
+        const orphan = [place("beach", { containedIn: "nowhere" })];
+        expect(containingChain(orphan, "beach")).toEqual([
+            { iri: "nowhere", label: "a place not synced here yet" },
+        ]);
+    });
+
+    it("stops at a place already named, so a cycle repeats no step", () => {
+        // Foreign data is free to say Lisboa is in the beach as well.
+        const cyclic = [
+            place("beach", { containedIn: "lisbon" }),
+            place("lisbon", { containedIn: "beach" }),
+        ];
+        const chain = containingChain(cyclic, "beach");
+        expect(chain.map((s) => s.iri)).toEqual(["lisbon"]);
+        expect(new Set(chain.map((s) => s.iri)).size).toBe(chain.length);
+    });
+
+    it("survives a place that contains itself", () => {
+        const selfish = [place("a", { containedIn: "a" })];
+        expect(containingChain(selfish, "a")).toEqual([]);
+    });
+
+    it("has no chain for a place the store does not know", () => {
+        expect(containingChain(all, "unknown")).toEqual([]);
     });
 });
 

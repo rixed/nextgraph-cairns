@@ -16,6 +16,7 @@ import { useShape } from "@ng-org/orm/svelte";
 import { OrmSubscription, normalizeScope } from "@ng-org/orm";
 import { sessionPromise } from "./ngSession";
 import { select } from "./query";
+import { oneEach } from "./identity";
 import { RecommendationShapeType } from "../shapes/orm/recommendationShape.shapeTypes";
 import type { Recommendation as RecShape } from "../shapes/orm/recommendationShape.typings";
 import { SPARQL_PREFIXES, dateLiteral, stringLiteral } from "./typedLiterals";
@@ -57,7 +58,7 @@ export function useRecommendations() {
     const recs = useShape(RecommendationShapeType, "did:ng:i");
     return {
         get all(): Recommendation[] {
-            return (
+            return oneEach(
                 ([...recs] as unknown as RecShape[])
                     .map(toRecommendation)
                     // A subject appears as soon as it matches the shape, and the
@@ -65,7 +66,10 @@ export function useRecommendations() {
                     // without a referent yet is not something to show — it is
                     // not a recommendation about anything until the IRI lands,
                     // and every screen would otherwise have to guard the join.
-                    .filter((r) => !!r.item)
+                    .filter((r) => !!r.item),
+                // Ours to write, so two records of one is not expected — but
+                // the lists key on the IRI like every other (lib/identity.ts).
+                (r) => r.id
             );
         },
     };

@@ -16,6 +16,7 @@
 import { useShape } from "@ng-org/orm/svelte";
 import { OrmSubscription, normalizeScope } from "@ng-org/orm";
 import { sessionPromise } from "./ngSession";
+import { oneEach } from "./identity";
 import { PersonShapeType } from "../shapes/orm/personShape.shapeTypes";
 import type { Person as PersonShape } from "../shapes/orm/personShape.typings";
 import { SPARQL_PREFIXES, stringLiteral } from "./typedLiterals";
@@ -46,7 +47,13 @@ export function useAllPeople() {
     const people = useShape(PersonShapeType, "did:ng:i");
     return {
         get all(): Person[] {
-            return ([...people] as unknown as PersonShape[]).map(toPerson);
+            // One entry per person: a contact another application also has a
+            // record of is still one person, which is what `findPerson` already
+            // assumes (lib/identity.ts).
+            return oneEach(
+                ([...people] as unknown as PersonShape[]).map(toPerson),
+                (p) => p.id
+            );
         },
     };
 }

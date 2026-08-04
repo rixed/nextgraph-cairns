@@ -22,6 +22,7 @@
         findPlace,
         placeLabel,
         formatCoords,
+        containingChain,
         isWithin,
         isIdentified,
         isWritable,
@@ -48,21 +49,8 @@
 
     const place = $derived(findPlace(places.all, iri));
 
-    /**
-     * The containing chain, outermost last — Alfama → Lisboa → Portugal. Each
-     * step is a place of its own and opens as one.
-     */
-    const chain = $derived.by(() => {
-        const out: { iri: string; label: string }[] = [];
-        let at = place?.containedIn;
-        // Bounded: a cycle in someone else's data must not hang the screen.
-        for (let i = 0; at && i < 12; i++) {
-            const p = findPlace(places.all, at);
-            out.push({ iri: at, label: placeLabel(p, at) });
-            at = p?.containedIn;
-        }
-        return out;
-    });
+    /** The containing chain, outermost last — Alfama → Lisboa → Portugal. */
+    const chain = $derived(containingChain(places.all, iri));
 
     /**
      * Memories here — transitively, so a memory in Alfama appears on Lisboa's
