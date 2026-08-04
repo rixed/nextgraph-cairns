@@ -2350,6 +2350,7 @@ try {
 
         const PLACE = "S41 probe pin";
         const NOTE = "S41 probe: the one down by the water";
+        const MEMORY = "S41 probe swim";
 
         const placeDocs = () =>
             f.evaluate(
@@ -2414,6 +2415,10 @@ try {
             await wipePlaces();
             await page.waitForTimeout(2500);
             console.log("[pre-clean] removed what an earlier run left behind");
+        }
+        if (await titleCount(f, MEMORY)) {
+            const left = await deleteDownTo(page, f, MEMORY, 0);
+            console.log(`[pre-clean] "${MEMORY}" left over from before, now ${left}`);
         }
 
         console.log("=== the picker asks for the name before it hands back ===");
@@ -2480,7 +2485,69 @@ try {
                 : `FAIL: not on the list:\n${listed.slice(0, 400)}`
         );
 
+        console.log("=== months later, a memory near it, and nothing shared ===");
+        // Anna pointed at a map; Sasha went and found the place. What she
+        // writes that evening drops its own pin, some 300 m off — a different
+        // subject in a different document, with no IRI in common with the
+        // recommendation. Nothing but nearness can connect the two.
+        await f.evaluate(() => (location.hash = "#/"));
+        await page.waitForTimeout(2500);
+        await f.getByLabel("Capture a memory").click();
+        await page.waitForTimeout(1500);
+        await f.getByPlaceholder("Optional").fill(MEMORY, { timeout: 60000 });
+        await f.getByRole("button", { name: "+ add a location" }).click();
+        await page.waitForTimeout(1500);
+        await f.getByPlaceholder("Latitude").fill("38.6942");
+        await f.getByPlaceholder("Longitude").fill("-9.1710");
+        await f.getByRole("button", { name: "Use these coordinates" }).click();
+        await page.waitForTimeout(2000);
+
+        const offer = await f.evaluate(() => document.body.innerText);
+        const asked = /You were told about somewhere .* from here — was this it\?/;
+        console.log(
+            asked.test(offer) && offer.includes(NOTE)
+                ? `OK: offered on nearness alone — "${offer.match(asked)[0]}"`
+                : `FAIL: no offer:\n${offer.slice(0, 500)}`
+        );
+
+        // Ticking it is the user's claim, not the app's (§6.2): nearness asks
+        // the question and only this click answers it.
+        await f.getByText(/was this it\?/).first().click();
+        await page.waitForTimeout(500);
+        await f.getByRole("button", { name: "Save", exact: true }).click();
+        await page.waitForTimeout(6000);
+
+        const closed = await f.evaluate(
+            (n) =>
+                window.spikeSelect(
+                    `PREFIX schema: <https://schema.org/>
+                     PREFIX prov: <http://www.w3.org/ns/prov#>
+                     PREFIX app: <did:ng:z:cairns/>
+                     SELECT ?m ?r WHERE {
+                        GRAPH ?g { ?m a app:Memory ; prov:wasInfluencedBy ?r }
+                        GRAPH ?h { ?r a app:Recommendation ;
+                                      schema:description "${n}" } }`
+                ),
+            NOTE
+        );
+        console.log(
+            closed?.length === 1
+                ? "OK: the loop closed — the memory says what prompted it (§4.1)"
+                : `FAIL: ${JSON.stringify(closed)}`
+        );
+
+        await f.evaluate(() => (location.hash = "#/heard"));
+        await page.waitForTimeout(4000);
+        const heard = await f.evaluate(() => document.body.innerText);
+        console.log(
+            /✓ you went/.test(heard) && heard.includes(PLACE)
+                ? "OK: S-40 marks it as somewhere you have now been"
+                : `FAIL: still unfulfilled on S-40:\n${heard.slice(0, 400)}`
+        );
+        await shot(page, "s41-offered-by-nearness");
+
         if (!process.env.KEEP) {
+            await cleanUp(page, f, MEMORY, 0);
             await wipeRecs();
             await wipePlaces();
             await page.waitForTimeout(2500);

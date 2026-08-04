@@ -31,7 +31,14 @@
         type AttendeeDraft,
     } from "../lib/people";
     import { createMemory, updateMemory } from "../lib/memories";
-    import { useRecommendations, promptedBy } from "../lib/recommendations";
+    import {
+        useRecommendations,
+        promptedBy,
+        type Point,
+    } from "../lib/recommendations";
+    import { referentPlace, pointOf } from "../lib/heardAbout";
+    import { useAllMedia } from "../lib/mediaFeed.svelte";
+    import { formatKm } from "../lib/here.svelte";
     import { useEvents } from "../lib/events.svelte";
     import { browse } from "../lib/browse.svelte";
     import { router } from "../lib/router.svelte";
@@ -153,6 +160,8 @@
 
     const recs = useRecommendations();
     const publicEvents = useEvents();
+    /** For the coordinates the attached photographs carry — see `points`. */
+    const mediaFeed = useAllMedia();
 
     /**
      * §6.2: "capturing at a recommended place or event offers to link that
@@ -169,11 +178,49 @@
      * edited — which is the right cost while the list is short, and the wrong
      * one if it ever gets long.
      */
+    /**
+     * Every coordinate this memory can offer, for the nearness half of the
+     * offer: the places it names, the pins it dropped, and — the one that makes
+     * the workflow work — the coordinates its photographs carry.
+     *
+     * The photographs are the only party that knows exactly where you were. You
+     * were told about somewhere by a finger on a map, you found it, and what
+     * you write that evening is a pin dropped from memory or nothing at all;
+     * the pictures of the day are precise. Read here to ask a question, and
+     * stored nowhere: a location inferred from media is derived data (§1.3.16),
+     * and choosing it remains S-32's business.
+     */
+    const points = $derived.by(() => {
+        const out: Point[] = [];
+        for (const l of locations) {
+            if (l.kind === "unnamed") out.push({ lat: l.lat, lon: l.lon });
+            else {
+                const p = pointOf(findPlace(places.all, l.iri));
+                if (p) out.push(p);
+            }
+        }
+        for (const doc of media) {
+            const m = mediaFeed.all.find((x) => x.doc === doc);
+            if (m?.lat !== undefined && m.lon !== undefined)
+                out.push({ lat: m.lat, lon: m.lon });
+        }
+        return out;
+    });
+
     const offered = $derived(
-        promptedBy(recs.all, [
-            ...locations.filter((l) => l.kind === "place").map((l) => l.iri),
-            ...events,
-        ]).filter((r) => !prompts.includes(r.id))
+        promptedBy(
+            recs.all,
+            {
+                referents: [
+                    ...locations
+                        .filter((l) => l.kind === "place")
+                        .map((l) => l.iri),
+                    ...events,
+                ],
+                points,
+            },
+            (r) => pointOf(referentPlace(r, publicEvents.all, places.all))
+        ).filter((o) => !prompts.includes(o.rec.id))
     );
 
     const togglePrompt = (id: string) => {
@@ -395,19 +442,30 @@
                         </span>
                     </label>
                 {/each}
-                {#each offered as r (r.id)}
+                {#each offered as o (o.rec.id)}
                     <!-- The offer §6.2 asks for. Unticked: going somewhere and
                          going *because* somebody said so are different claims,
-                         and only the user can make the second. -->
+                         and only the user can make the second.
+
+                         The distance is shown because the offer is now a guess:
+                         one made on nearness has to say how near, or a wrong
+                         one is a mystery rather than something to dismiss. -->
                     <label class="label cursor-pointer justify-start gap-2 py-0">
                         <input
                             type="checkbox"
                             class="checkbox checkbox-sm"
-                            onchange={() => togglePrompt(r.id)}
+                            onchange={() => togglePrompt(o.rec.id)}
                         />
                         <span class="label-text text-sm opacity-70">
-                            Was this because you were told about it?
-                            {#if r.note}<span class="opacity-60">— {r.note}</span>{/if}
+                            {#if o.distanceKm === undefined}
+                                Was this because you were told about it?
+                            {:else}
+                                You were told about somewhere
+                                {formatKm(o.distanceKm)} from here — was this it?
+                            {/if}
+                            {#if o.rec.note}<span class="opacity-60">
+                                    — {o.rec.note}</span
+                                >{/if}
                         </span>
                     </label>
                 {/each}

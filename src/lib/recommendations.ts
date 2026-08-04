@@ -20,6 +20,7 @@ import { oneEach } from "./identity";
 import { RecommendationShapeType } from "../shapes/orm/recommendationShape.shapeTypes";
 import type { Recommendation as RecShape } from "../shapes/orm/recommendationShape.typings";
 import { SPARQL_PREFIXES, dateLiteral, stringLiteral } from "./typedLiterals";
+import { km } from "./here.svelte";
 import { parsePrecisionDate, type PrecisionDate } from "./dates";
 
 /** A recommendation as the app cares about it, flattened from the shape. */
@@ -280,19 +281,89 @@ export function fulfilments(
 }
 
 /**
- * Recommendations whose referent a memory's claims match — what S-21 offers to
+ * How near counts as "there".
+ *
+ * The number exists because the interesting case is never an exact match. Anna
+ * points at a natural pool on a map and tells Sasha about it; Sasha finds it
+ * months later and writes it up from photographs that know to six decimals
+ * where she swam. Those are two different coordinates of one place, and no
+ * shared URI was ever going to appear between them — only the app itself could
+ * have minted one, and it was not there when Anna pointed.
+ *
+ * Kept as one named constant because it is the parameter most likely to be
+ * wrong, and because it belongs in S-70's preferences once those exist (§6.2).
+ * Every caller may override it; nothing else hardcodes a radius.
+ */
+export const NEAR_ENOUGH_KM = 0.5;
+
+/** Where something is, for matching. Structurally `here.svelte`'s Position. */
+export interface Point {
+    lat: number;
+    lon: number;
+}
+
+/** What a memory offers about where it happened, for matching (see below). */
+export interface MemoryClaims {
+    /** Named outright: identified places and public events. */
+    referents: string[];
+    /** Coordinates it can offer: its places, its pins, its photographs. */
+    points: Point[];
+}
+
+/** A recommendation a memory may be acting on, and why it came up. */
+export interface Prompt {
+    rec: Recommendation;
+    /** How near, when nearness is the reason. Absent when it was named. */
+    distanceKm?: number;
+}
+
+/**
+ * Recommendations a memory's claims may be acting on — what S-21 offers to
  * link (§6.2: "capturing at a recommended place or event offers to link that
  * recommendation to the memory"). An offer, not a mark: whether you went
  * because Ana said so is a claim about your own intent, and the app does not
- * get to make it for you.
+ * get to make it for you. Nearness is a reason to ask, never an answer.
  *
- * `referents` are the identified places and public events the memory claims. A
- * dropped pin is not among them: nothing can point at it (§1.3), including a
- * recommendation.
+ * Two ways to match, in this order:
+ *
+ *   - the memory **names** the referent — the same identified place, the same
+ *     public event. Exact, and it needs no coordinates on either side;
+ *   - the memory **was near** it. This is the one that carries the workflow:
+ *     the referent's coordinates against every coordinate the memory can
+ *     offer, which includes those its photographs carry (§3.4). An inference,
+ *     computed here on every read and never stored (§1.3.16).
+ *
+ * `locate` resolves a referent to coordinates — an event's are its venue's, so
+ * the caller does the joining and this stays arithmetic (see `referentPlace`).
+ *
+ * Nearest first, and a named referent ahead of any of them: it is not a guess.
  */
 export function promptedBy(
     all: Recommendation[],
-    referents: string[]
-): Recommendation[] {
-    return all.filter((r) => referents.includes(r.item));
+    claims: MemoryClaims,
+    locate: (r: Recommendation) => Point | undefined = () => undefined,
+    withinKm = NEAR_ENOUGH_KM
+): Prompt[] {
+    const out: Prompt[] = [];
+    for (const rec of all) {
+        if (claims.referents.includes(rec.item)) {
+            out.push({ rec });
+            continue;
+        }
+        const at = locate(rec);
+        if (!at) continue;
+        // The nearest of the memory's points, so a memory that names a place
+        // *and* carries photographs is judged by whichever is closest — the
+        // question is "were you there", and one yes is enough.
+        let nearest: number | undefined;
+        for (const p of claims.points) {
+            const d = km(p, at);
+            if (nearest === undefined || d < nearest) nearest = d;
+        }
+        if (nearest !== undefined && nearest <= withinKm)
+            out.push({ rec, distanceKm: nearest });
+    }
+    return out.sort(
+        (a, b) => (a.distanceKm ?? -1) - (b.distanceKm ?? -1)
+    );
 }

@@ -6,7 +6,7 @@
 // referent into a span and a distance; everything below is arithmetic on those.
 
 import { interval, type Interval } from "./dates";
-import type { Recommendation } from "./recommendations";
+import type { Point, Recommendation } from "./recommendations";
 import { findEvent, eventSpan, type PublicEvent } from "./events.svelte";
 import { findPlace, placeLabel, type Place } from "./places";
 import { km, type Position } from "./here.svelte";
@@ -100,6 +100,32 @@ export interface ResolvedRecommendation extends Rankable {
     urgency: Urgency;
 }
 
+/**
+ * Where a recommendation points, as far as the store knows: the place it
+ * names, or — when it names an event — the place that event is at. An event's
+ * place is the event's, not the recommendation's: you were told about the
+ * festival, and the festival knows where it is.
+ *
+ * Shared with S-21's offer (`promptedBy`), which needs the same join to ask
+ * whether a memory happened near something you were told about.
+ */
+export function referentPlace(
+    rec: Recommendation,
+    events: PublicEvent[],
+    places: Place[]
+): Place | undefined {
+    const event = findEvent(events, rec.item);
+    const iri = event ? event.location : rec.item;
+    return iri ? findPlace(places, iri) : undefined;
+}
+
+/** The coordinates of a place, when it has them — the shape `promptedBy` wants. */
+export function pointOf(place: Place | undefined): Point | undefined {
+    return place?.lat !== undefined && place.lon !== undefined
+        ? { lat: place.lat, lon: place.lon }
+        : undefined;
+}
+
 export function resolve(
     recs: Recommendation[],
     events: PublicEvent[],
@@ -111,10 +137,7 @@ export function resolve(
 ): ResolvedRecommendation[] {
     return recs.map((rec) => {
         const event = findEvent(events, rec.item);
-        // An event's place is the event's, not the recommendation's: you were
-        // told about the festival, and the festival knows where it is.
-        const placeIri = event ? event.location : rec.item;
-        const place = placeIri ? findPlace(places, placeIri) : undefined;
+        const place = referentPlace(rec, events, places);
         const span = event ? eventSpan(event) : undefined;
         return {
             rec,

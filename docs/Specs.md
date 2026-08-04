@@ -351,6 +351,18 @@ first, which is what keeps it in a memory app, and what makes it the landing zon
 recommendations with no model change.
 A recommendation is said to be "fulfilled" when a memory references it via its `prov:wasInfluencedBy` field.
 
+**Which memory gets offered the link is decided by nearness, not by a shared URI.** Anna
+points at a natural pool on a map and tells Sasha about it; Sasha finds it months later and
+writes it up from photographs that know to six decimals where she swam. Those are two
+coordinates of one place and there was never a URI between them. So a memory is offered
+every recommendation whose referent lies within a radius of anywhere the memory can place
+itself — the places it names, the pins it dropped, and the coordinates its photographs
+carry (§3.4). A named referent still matches exactly and ranks first. The radius is one
+constant today, `NEAR_ENOUGH_KM`, and belongs in preferences (S-70) once those exist.
+
+The offer is still only an offer: nearness asks the question and the user's tick is what
+records it. Nothing about the match is stored (§1.3.16).
+
 ### 4.2 Place or event referents
 
 A recommendation may be about a place that is always there, or about something that
@@ -515,7 +527,8 @@ Media are **selected, not uploaded**: a picker over the user's discoverable medi
 pre-filtered to the memory's span and location and showing what would be associated by
 overlap anyway, so the user attaches only the exceptions. Offers a derived location when
 media carry coordinates and none is claimed. Capturing
-at a recommended place or event offers to link that recommendation to the memory.
+at — or near — a recommended place or event offers to link that recommendation to the
+memory, saying how near so that a wrong offer can be recognised as one (§4.1).
 
 **S-22 Browse** — P0
 The shell: filter bar, projection switcher, selection mode. Filter and scroll position
