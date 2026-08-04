@@ -1993,24 +1993,42 @@ try {
             await page.waitForTimeout(4000);
         }
 
+        // Which offers are on screen, and which of them are about our window.
+        // "April 1998 is empty" was only ever true of April 1998: the rest of
+        // the archive is free to have runs of its own — the fixtures do — and
+        // an assertion that no episode at all is offered is an assertion about
+        // somebody else's data.
+        const offers = (t) => t.match(/^.*— one episode\?.*$/gm) ?? [];
+        const ours = (t) => offers(t).filter((l) => l.includes("1998"));
+        /** The card for our run, whatever else is proposed beside it. */
+        const ourCard = () =>
+            f
+                .locator("li")
+                .filter({ hasText: "one episode?" })
+                .filter({ hasText: "1998" });
+
         console.log("=== the archive offers them as one episode ===");
         await f.evaluate(() => (location.hash = "#/"));
         let txt = "";
         for (let i = 0; i < 12; i++) {
             await page.waitForTimeout(2500);
             txt = await f.evaluate(() => document.body.innerText);
-            if (/one episode\?/.test(txt)) break;
+            if (ours(txt).length) break;
         }
-        const offer = txt.match(/(\d+) memories, ([^\n]*?)— one episode\?/);
+        const offer = ours(txt)[0]?.match(/(\d+) memories, (.*?)— one episode\?/);
         console.log(
             offer && offer[1] === "3"
                 ? `OK: a suggestion, "${offer[0].trim()}"`
                 : `FAIL: no suggestion for the run:\n${txt.slice(0, 600)}`
         );
+        if (offers(txt).length > 1)
+            console.log(
+                `[window] ${offers(txt).length - 1} other run(s) proposed from the rest of the archive; asserting on ours`
+            );
         await shot(page, "grouping-suggestion");
 
         console.log("=== one tap selects the run for tagging ===");
-        await f.getByRole("button", { name: "Tag these" }).first().click();
+        await ourCard().getByRole("button", { name: "Tag these" }).click();
         await page.waitForTimeout(1500);
         txt = await f.evaluate(() => document.body.innerText);
         console.log(
@@ -2030,9 +2048,8 @@ try {
         await page.waitForTimeout(1500);
 
         console.log("=== the other tap writes a memory about them ===");
-        await f
+        await ourCard()
             .getByRole("button", { name: "Write a memory about these" })
-            .first()
             .click();
         await page.waitForTimeout(3000);
         const dates = await f
@@ -2050,7 +2067,7 @@ try {
 
         console.log("=== a tagged run is not proposed again ===");
         // The suppression that stands in for dismissal until §3.9 is built.
-        await f.getByRole("button", { name: "Tag these" }).first().click();
+        await ourCard().getByRole("button", { name: "Tag these" }).click();
         await page.waitForTimeout(1500);
         const box = f
             .locator('input[placeholder="tag, or portugal/sintra"]:visible')
@@ -2073,9 +2090,9 @@ try {
         await page.waitForTimeout(6000);
         txt = await f.evaluate(() => document.body.innerText);
         console.log(
-            !/one episode\?/.test(txt)
+            ours(txt).length === 0
                 ? "OK: once they share a tag, the offer is gone"
-                : `FAIL: still offered:\n${txt.slice(0, 400)}`
+                : `FAIL: still offered: ${ours(txt).join(" / ")}`
         );
 
         for (const t of TITLES) await cleanUp(page, f, t, 0);
