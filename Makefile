@@ -14,7 +14,7 @@ help:
 	@echo 'Targets:'
 	@echo '  - help: This'
 	@echo
-	@echo '  - build: Build the app into dist/'
+	@echo '  - build: Build the app into dist/, if anything changed'
 	@echo '  - run: Build, then serve it on http://localhost:$(PORT)'
 	@echo '  - dev: Serve with hot reload instead, on the same port'
 	@echo
@@ -53,8 +53,24 @@ node_modules: package.json pnpm-lock.yaml
 
 install: node_modules
 
-build: node_modules
+# Everything a bundle is made of. Expanded by the shell on every invocation
+# whatever the target, which src/ is small enough to afford.
+#
+# Files only, not the directories: an editor writing a swap file beside the
+# source it is editing changes src/'s own mtime, and a build on every keystroke
+# is worse than the case this misses — deleting a source without touching any
+# other, which needs a `make clean`.
+SOURCES := $(shell find src -type f) \
+           index.html vite.config.ts svelte.config.js tsconfig.json package.json
+
+# A stamp rather than dist/index.html: make would take a half-written bundle
+# for a finished one if the build died between emitting the HTML and the
+# assets, and the stamp is only touched once vite has exited happy.
+dist/.stamp: node_modules $(SOURCES)
 	$(PNPM) exec vite build
+	@touch $@
+
+build: dist/.stamp
 
 run: build
 	$(PNPM) exec vite preview
