@@ -281,6 +281,54 @@ export async function updateUnnamedLocation(
     );
 }
 
+/** The triples of a minted place, in the document that *is* its URI. */
+function placeTriples(
+    doc: string,
+    fields: { name: string; lat: number; lon: number; sameAs?: string }
+): string[] {
+    const t = [
+        `<${doc}> a schema:Place`,
+        `<${doc}> schema:name ${stringLiteral(fields.name.trim())}`,
+        ...coordTriples(doc, fields.lat, fields.lon),
+    ];
+    if (fields.sameAs?.trim())
+        t.push(`<${doc}> owl:sameAs <${fields.sameAs.trim()}>`);
+    return t;
+}
+
+/**
+ * Mint a place with identity of its own, from coordinates and a name that were
+ * never nested in a memory to begin with — S-41's referent, where the picker
+ * offered a pin and the caller can only point at something referenceable.
+ *
+ * This is `promoteLocation` without anything to promote or repoint: the same
+ * document, the same triples, the same rule that a place worth minting has a
+ * name (§1.3). A pin with no name is a location, and stays one.
+ */
+export async function createPlace(fields: {
+    name: string;
+    lat: number;
+    lon: number;
+    sameAs?: string;
+}): Promise<string> {
+    if (!fields.name.trim()) throw new Error("a place worth minting has a name");
+    const s = await sessionPromise;
+    const doc: string = await s.ng.doc_create(
+        s.session_id,
+        "Graph",
+        "data:graph",
+        "store",
+        undefined
+    );
+    await s.ng.sparql_update(
+        s.session_id,
+        `${SPARQL_PREFIXES}
+         INSERT DATA { GRAPH <${doc}> {\n${placeTriples(doc, fields).join(" .\n")} .\n} }`,
+        doc
+    );
+    return doc;
+}
+
 /**
  * Promotion (S-33): give an unnamed location identity — its own document, its
  * own URI — and repoint the memory that held it at the new place.
@@ -316,13 +364,7 @@ export async function promoteLocation(
         undefined
     );
 
-    const place = [
-        `<${doc}> a schema:Place`,
-        `<${doc}> schema:name ${stringLiteral(name)}`,
-        ...coordTriples(doc, fields.lat, fields.lon),
-    ];
-    if (fields.sameAs?.trim())
-        place.push(`<${doc}> owl:sameAs <${fields.sameAs.trim()}>`);
+    const place = placeTriples(doc, { ...fields, name });
 
     await s.ng.sparql_update(
         s.session_id,

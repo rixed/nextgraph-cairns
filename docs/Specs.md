@@ -554,7 +554,8 @@ capture a memory, add a recommendation, edit if locally owned, open externally.
 **S-32 Place picker** — P0
 Returns a place *reference*. Four groups: places you know, external gazetteer matches,
 events at a place, and "drop a pin instead" — which returns an unnamed location rather than
-a place, and is right more often than it looks.
+a place, and is right more often than it looks. A caller that can only hold something
+referenceable (S-41) says so, and the pin's name stops being optional there.
 
 **S-33 Unnamed / custom place editor** — P0
 Edits an unnamed location's coordinates and free-text name. Handles **promotion** to an
@@ -575,7 +576,9 @@ still-upcoming. Hands off to S-22b for the map.
 
 **S-41 Recommendation editor** — P0
 Referent via S-32 (place) or event search, source (contact, URL, or free text), date told,
-event dates if the referent is a new event, tags, note.
+event dates if the referent is a new event, tags, note. A named pin from S-32 is minted
+into a place of its own here — being told about somewhere is a reference from elsewhere,
+and §1.3 gives identity to what is referenced from elsewhere.
 
 **S-51 Media detail** — P0
 Full-bleed viewer, swipe between siblings in the current filter. Caption,

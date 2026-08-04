@@ -2339,6 +2339,159 @@ try {
                     : `FAIL: ${left} promoted place(s) left in the store`
             );
         }
+    } else if (step === "s41") {
+        // S-41 (§4.1, §6.2): being told about a place the store does not hold
+        // yet. The picker offers a pin, the pin is given a name, and the name
+        // is what turns it into something a recommendation may point at (§1.3)
+        // — the promotion S-33 does for a location, done for one that was
+        // never in a memory. Self-cleaning, including the document it mints.
+        const f = await loginAndGetFrame(page);
+        await settle(f);
+
+        const PLACE = "S41 probe pin";
+        const NOTE = "S41 probe: the one down by the water";
+
+        const placeDocs = () =>
+            f.evaluate(
+                (n) =>
+                    window
+                        .spikeSelect(
+                            `PREFIX schema: <https://schema.org/>
+                             SELECT ?g ?p WHERE { GRAPH ?g {
+                                ?p a schema:Place ; schema:name "${n}" } }`
+                        )
+                        .then((r) =>
+                            r.map((x) => ({ g: x.g.value, p: x.p.value }))
+                        ),
+                PLACE
+            );
+        const probeRecs = () =>
+            f.evaluate(
+                (n) =>
+                    window
+                        .spikeSelect(
+                            `PREFIX schema: <https://schema.org/>
+                             SELECT ?s ?item WHERE { GRAPH ?g {
+                                ?s a <did:ng:z:cairns/Recommendation> ;
+                                   schema:description "${n}" ;
+                                   schema:item ?item } }`
+                        )
+                        .then((r) =>
+                            r.map((x) => ({ s: x.s.value, item: x.item.value }))
+                        ),
+                NOTE
+            );
+        /** This probe's recommendation only — the list is the user's. */
+        const wipeRecs = async () => {
+            for (const { s } of await probeRecs())
+                await f.evaluate(
+                    (iri) =>
+                        window.spikeUpdate(
+                            `PREFIX schema: <https://schema.org/>
+                             DELETE { GRAPH ?g { ?l schema:itemListElement <${iri}> .
+                                                 <${iri}> ?p ?o } }
+                             WHERE { GRAPH ?g { <${iri}> ?p ?o .
+                                OPTIONAL { ?l schema:itemListElement <${iri}> } } }`,
+                            undefined
+                        ),
+                    s
+                );
+        };
+        const wipePlaces = async () => {
+            for (const { g } of await placeDocs())
+                await f.evaluate(
+                    (graph) =>
+                        window.spikeUpdate(
+                            `DELETE WHERE { GRAPH <${graph}> { ?s ?p ?o } }`,
+                            graph
+                        ),
+                    g
+                );
+        };
+
+        if ((await probeRecs()).length || (await placeDocs()).length) {
+            await wipeRecs();
+            await wipePlaces();
+            await page.waitForTimeout(2500);
+            console.log("[pre-clean] removed what an earlier run left behind");
+        }
+
+        console.log("=== the picker asks for the name before it hands back ===");
+        await f.evaluate(() => (location.hash = "#/heard"));
+        await page.waitForTimeout(4000);
+        await click(f, "Add something");
+        await page.waitForTimeout(2000);
+        await click(f, "Pick a place");
+        await page.waitForTimeout(2000);
+        await f.getByPlaceholder("Latitude").fill("38.6942");
+        await f.getByPlaceholder("Longitude").fill("-9.1745");
+        await page.waitForTimeout(500);
+        const use = f.getByRole("button", { name: "Use these coordinates" });
+        const refused = await use.isDisabled();
+        const asks = await f.evaluate(() =>
+            /Name it first/.test(document.body.innerText)
+        );
+        console.log(
+            refused && asks
+                ? "OK: coordinates alone are not an answer, and it says so here"
+                : `FAIL: disabled=${refused}, explained=${asks}`
+        );
+
+        console.log("=== a named pin becomes the referent ===");
+        await f.getByPlaceholder("What you call it").fill(PLACE);
+        await page.waitForTimeout(500);
+        await use.click();
+        // Minting is a document creation and an update: slower than a return.
+        await page.waitForTimeout(8000);
+        const back = await f.evaluate(() => document.body.innerText);
+        console.log(
+            back.includes(PLACE) && !/needs a place with a name/.test(back)
+                ? "OK: back in the editor with the place on it, and no refusal"
+                : `FAIL: after using the pin:\n${back.slice(0, 400)}`
+        );
+        await shot(page, "s41-pin-as-referent");
+
+        const minted = await placeDocs();
+        console.log(
+            minted.length === 1 && !minted[0].p.includes("#")
+                ? "OK: one place document, with a URI of its own"
+                : `FAIL: ${JSON.stringify(minted)}`
+        );
+
+        console.log("=== and the recommendation points at it ===");
+        await f
+            .getByPlaceholder("go on a weekday, ask for the back room")
+            .fill(NOTE);
+        await f.locator('input[aria-label="Source"]').fill("the s41 driver");
+        await click(f, "Save");
+        await page.waitForTimeout(5000);
+        const listed = await f.evaluate(() => document.body.innerText);
+        const written = await probeRecs();
+        console.log(
+            written.length === 1 &&
+                minted.length === 1 &&
+                written[0].item === minted[0].p
+                ? "OK: schema:item is the minted place, not a fragment (§1.3)"
+                : `FAIL: ${JSON.stringify(written)}`
+        );
+        console.log(
+            listed.includes(PLACE)
+                ? "OK: S-40 lists it under the name you gave the pin"
+                : `FAIL: not on the list:\n${listed.slice(0, 400)}`
+        );
+
+        if (!process.env.KEEP) {
+            await wipeRecs();
+            await wipePlaces();
+            await page.waitForTimeout(2500);
+            const left =
+                (await probeRecs()).length + (await placeDocs()).length;
+            console.log(
+                left === 0
+                    ? "[cleanup] the recommendation and the place are both gone"
+                    : `FAIL: ${left} thing(s) left in the store`
+            );
+        }
     } else if (step === "search") {
         // S-02 (§6.2) without an index (B-08): free text over the store,
         // grouped by type, and handed to S-22 as a filter so that a search

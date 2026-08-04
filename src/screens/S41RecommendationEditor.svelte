@@ -27,6 +27,7 @@
         findPlace,
         placeLabel,
         isIdentified,
+        createPlace,
         type LocationDraft,
     } from "../lib/places";
     import { useAllPeople, personLabel, findPerson } from "../lib/people";
@@ -52,6 +53,8 @@
     let note = $state("");
     let tags = $state<string[]>([]);
     let saving = $state(false);
+    /** A place is being minted out of a pin the picker just handed back. */
+    let minting = $state(false);
     let error = $state("");
 
     // Load once, when the record arrives: the subscription may deliver after
@@ -96,16 +99,40 @@
     function pickPlace() {
         router.push({
             name: "placepicker",
-            onReturn: (value) => {
+            // The picker asks for a name with the pin here, because a pin that
+            // has one is the referent rather than a refusal.
+            params: { named: "1" },
+            onReturn: async (value) => {
                 const loc = value as LocationDraft | undefined;
                 if (!loc) return;
-                // A dropped pin has no identity, and §1.3 is explicit that
-                // anything referenced from elsewhere gets one. A recommendation
-                // is a reference from elsewhere, so a pin is not a referent.
-                if (loc.kind === "place") item = loc.iri;
-                else
+                if (loc.kind === "place") {
+                    item = loc.iri;
+                    return;
+                }
+                // A pin is a subject inside one memory's document, and §1.3 is
+                // explicit that what is referenced from elsewhere gets identity
+                // of its own. A recommendation is a reference from elsewhere,
+                // so the pin is minted into a place — the same thing S-33's
+                // promotion does, for a location that was never in a memory.
+                const name = loc.name?.trim();
+                if (!name) {
                     error =
-                        "A recommendation needs a place with a name — a dropped pin belongs to one memory only.";
+                        "A recommendation needs a place with a name — an unnamed pin belongs to one memory only.";
+                    return;
+                }
+                minting = true;
+                error = "";
+                try {
+                    item = await createPlace({
+                        name,
+                        lat: loc.lat,
+                        lon: loc.lon,
+                    });
+                } catch (e) {
+                    error = String(e);
+                } finally {
+                    minting = false;
+                }
             },
         });
     }
@@ -190,6 +217,11 @@
                     {#if asEvent.end}– {formatPrecisionDate(asEvent.end)}{/if}
                 </span>
             {/if}
+        {:else if minting}
+            <div class="flex items-center gap-2 mt-1 text-sm opacity-70">
+                <span class="loading loading-spinner loading-xs"></span>
+                Making a place of that pin…
+            </div>
         {:else}
             <div class="flex flex-wrap gap-2 items-center mt-1">
                 <button class="btn btn-sm" onclick={pickPlace}>

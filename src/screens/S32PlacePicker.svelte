@@ -20,6 +20,14 @@
 
     const startParam = router.current.params?.start;
     const endParam = router.current.params?.end;
+    /**
+     * The caller can only hold a location that something else may point at
+     * (S-41): a recommendation is a reference from elsewhere, and §1.3 gives
+     * identity to anything referenced from elsewhere. So a pin still gets
+     * dropped here, but its name stops being optional — the caller mints a
+     * place out of it — and the copy says where it will live.
+     */
+    const named = router.current.params?.named === "1";
 
     const places = useAllPlaces();
     const feed = useAllMedia();
@@ -82,6 +90,9 @@
         if (Math.abs(la) > 90 || Math.abs(lo) > 180) return undefined;
         return { lat: la, lon: lo };
     });
+
+    /** A pin is only an answer for this caller once it is called something. */
+    const pinnable = $derived(!named || !!name.trim());
 
     const give = (draft: LocationDraft) => router.pop(draft);
 
@@ -177,6 +188,7 @@
                 {#each fromPhotographs as f (f.media.doc)}
                     <li>
                         <button
+                            disabled={!pinnable}
                             onclick={() =>
                                 give({
                                     kind: "unnamed",
@@ -203,14 +215,22 @@
     <div class="flex flex-col gap-2">
         <h2 class="text-sm font-semibold opacity-70">Drop a pin instead</h2>
         <p class="text-xs opacity-60">
-            A beach, a wasteland, a friend's garden: coordinates and a name you
-            choose, kept inside this memory and nowhere else.
+            {#if named}
+                A beach, a wasteland, a friend's garden: coordinates and the
+                name you call it by. This one becomes a place of its own, so
+                that what you were told about has something to point at.
+            {:else}
+                A beach, a wasteland, a friend's garden: coordinates and a name
+                you choose, kept inside this memory and nowhere else.
+            {/if}
         </p>
 
         <input
             class="input input-bordered input-sm"
             bind:value={name}
-            placeholder="What you call it (optional)"
+            placeholder={named
+                ? "What you call it"
+                : "What you call it (optional)"}
         />
         <div class="flex gap-2">
             <input
@@ -236,7 +256,7 @@
             </button>
             <button
                 class="btn btn-sm btn-primary"
-                disabled={!typed}
+                disabled={!typed || !pinnable}
                 onclick={() =>
                     give({
                         kind: "unnamed",
@@ -254,6 +274,12 @@
         {#if (lat.trim() || lon.trim()) && !typed}
             <p class="text-xs text-error">
                 Latitude and longitude, in degrees.
+            </p>
+        {/if}
+        {#if !pinnable}
+            <p class="text-xs opacity-70">
+                Name it first: a place you can be told about is one that can be
+                named.
             </p>
         {/if}
 
