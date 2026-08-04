@@ -5,6 +5,7 @@ import {
     interval,
     memoryInterval,
     compareIntervals,
+    compareRecent,
     formatPrecisionDate,
     groupByDerivedHeaders,
     atPrecision,
@@ -102,6 +103,41 @@ describe("collation (§3.1)", () => {
     });
 });
 
+describe("compareRecent — the collation rule read backwards", () => {
+    const sorted = (lexicals: string[]) =>
+        [...lexicals]
+            .map(d)
+            .sort((a, b) => compareRecent(interval(a), interval(b)))
+            .map((x) => x.lexical);
+
+    it("leads with what happened last", () => {
+        expect(sorted(["2019-03", "2018-12-31", "2019-08-14"])).toEqual([
+            "2019-08-14",
+            "2019-03",
+            "2018-12-31",
+        ]);
+    });
+
+    it("keeps the umbrella at the head of its span, not the foot", () => {
+        // The whole reason this is not `-compareIntervals`: negating the
+        // collation rule sorts by earliest descending, and 2019's earliest is
+        // the smallest in 2019 — the umbrella would end up below everything it
+        // refers to.
+        expect(sorted(["2019-01-01", "2019", "2019-06-15", "2019-12-31"])).toEqual(
+            ["2019", "2019-12-31", "2019-06-15", "2019-01-01"]
+        );
+    });
+
+    it("holds at every granularity, not just the year", () => {
+        // A memory dated 2019-07 heads July exactly as 2019 heads the year.
+        expect(sorted(["2019-07-20", "2019-07", "2019-08-05"])).toEqual([
+            "2019-08-05",
+            "2019-07",
+            "2019-07-20",
+        ]);
+    });
+});
+
 describe("formatting shows stored precision, never more", () => {
     it("formats each precision", () => {
         expect(formatPrecisionDate(d("2019"), "en")).toBe("2019");
@@ -147,6 +183,26 @@ describe("groupByDerivedHeaders", () => {
         expect(groups[0].header).toBe("2019");
         // and the umbrella is first in the group
         expect(groups[0].items[0].lexical).toBe("2019");
+    });
+
+    it("gives a year one header even when a span reaches out of it", () => {
+        // Sorted newest-first by span end, a memory running from December into
+        // the next year sits among the later year's rows while belonging to the
+        // earlier one. Grouping by runs would emit "2019" twice, split around
+        // it; grouping by year cannot.
+        const crossing = memoryInterval(d("2019-12-15"), d("2020-01-10"));
+        const rows = [
+            { start: d("2020-06-01"), span: interval(d("2020-06-01")) },
+            { start: d("2019-12-15"), span: crossing },
+            { start: d("2019-05-01"), span: interval(d("2019-05-01")) },
+        ].sort((a, b) => compareRecent(a.span, b.span));
+        const groups = groupByDerivedHeaders(rows, (r) => r.start, "en");
+        // "June 2020" rather than "2020": that group has one member and the
+        // header takes the coarsest unit its members share.
+        expect(groups.map((g) => g.header)).toEqual(["June 2020", "2019"]);
+        expect(groups[1].items).toHaveLength(2);
+        // The crossing memory belongs to the year it started in, and leads it.
+        expect(groups[1].items[0].start.lexical).toBe("2019-12-15");
     });
 });
 

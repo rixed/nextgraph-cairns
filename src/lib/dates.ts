@@ -115,6 +115,24 @@ export function compareIntervals(a: Interval, b: Interval): number {
     return a.earliest - b.earliest || b.latest - a.latest;
 }
 
+/**
+ * §3.1 collation, read backwards: what the archive is *shown* in, because the
+ * thing you are most likely to be looking for is the thing that just happened.
+ *
+ * Not `-compareIntervals`. Negating it would sort by earliest descending, and
+ * an umbrella memory's `earliest` is the smallest in its span — so "The Van
+ * Year" would land at the *foot* of 2019 with everything it refers to above
+ * it, which is §3.1's umbrella rule inverted rather than mirrored.
+ *
+ * Largest `latest` first, ties broken by smallest `earliest`, is the true
+ * mirror: an umbrella's span reaches further than anything inside it, so it
+ * still leads, and the rule holds at every granularity — a memory dated
+ * `2019-07` heads July exactly as `2019` heads the year.
+ */
+export function compareRecent(a: Interval, b: Interval): number {
+    return b.latest - a.latest || a.earliest - b.earliest;
+}
+
 /** Rendering shows exactly the precision stored and never invents more. */
 export function formatPrecisionDate(
     d: PrecisionDate,
@@ -162,13 +180,21 @@ export function groupByDerivedHeaders<T>(
     getStart: (item: T) => PrecisionDate,
     locale?: string
 ): DateGroup<T>[] {
-    const groups: { year: number; items: T[] }[] = [];
+    // Bucketed by year rather than by runs of consecutive years. Under
+    // `compareRecent` the sort key is the span's end and the group key is its
+    // start, so a memory running from December into January sorts among the
+    // later year while belonging to the earlier one — a run-length pass would
+    // emit that year's header twice and split the group around it. A Map keyed
+    // by year cannot, and keeps first-appearance order, so the groups come out
+    // in whichever direction the list was sorted.
+    const byYear = new Map<number, T[]>();
     for (const item of sorted) {
         const y = parts(getStart(item)).y;
-        const last = groups[groups.length - 1];
-        if (last && last.year === y) last.items.push(item);
-        else groups.push({ year: y, items: [item] });
+        const bucket = byYear.get(y);
+        if (bucket) bucket.push(item);
+        else byYear.set(y, [item]);
     }
+    const groups = [...byYear].map(([year, items]) => ({ year, items }));
     return groups.map((g) => {
         const months = new Set(
             g.items.map((it) => {

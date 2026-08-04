@@ -16,7 +16,7 @@
     import {
         parsePrecisionDate,
         memoryInterval,
-        compareIntervals,
+        compareRecent,
         groupByDerivedHeaders,
         formatPrecisionDate,
         type PrecisionDate,
@@ -78,7 +78,10 @@
                 const end = parsePrecisionDate(m.endDate ?? undefined);
                 return [{ m, start, span: memoryInterval(start, end) }];
             })
-            .sort((a, b) => compareIntervals(a.span, b.span))
+            // Most recent first (§3.1): what you are looking for in an archive
+            // is usually what just happened, and every photo app the user has
+            // ever opened has taught them to expect it.
+            .sort((a, b) => compareRecent(a.span, b.span))
     );
 
     const groups = $derived(groupByDerivedHeaders(rows, (r) => r.start));

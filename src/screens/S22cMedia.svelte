@@ -77,11 +77,22 @@
         return all.filter((m) => wanted.has(m.doc));
     });
 
-    /** Grouped by the day the camera recorded, undated media last. */
+    /**
+     * Grouped by the day the camera recorded, most recent day first, undated
+     * media last — the order a photo grid is read in everywhere else.
+     */
     const groups = $derived.by(() => {
         const byDay = new Map<string, Media[]>();
         for (const m of [...shown].sort(
-            (a, b) => (takenAtMs(a) ?? Infinity) - (takenAtMs(b) ?? Infinity)
+            // Undated sorts last in either direction, so it cannot be `-Infinity`
+            // for one and `Infinity` for the other: it is pushed out by hand.
+            (a, b) => {
+                const ta = takenAtMs(a);
+                const tb = takenAtMs(b);
+                if (ta === undefined || tb === undefined)
+                    return ta === undefined ? (tb === undefined ? 0 : 1) : -1;
+                return tb - ta;
+            }
         )) {
             const t = takenAtMs(m);
             const key = t

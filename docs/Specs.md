@@ -128,6 +128,19 @@ Rendering shows exactly the precision stored and never invents more.
 smallest `earliest` first, ties broken by largest `latest`, so coarser values sort before
 finer ones within the same span. Group headers use the coarsest unit shared by the group.
 
+**Presentation order is the same rule read backwards: most recent first.** An archive is
+read from the end — what you are looking for is usually what just happened — and every photo
+app the user has ever opened has taught them to expect it. The mirror is *largest `latest`
+first, ties broken by smallest `earliest`*, which is not the same as negating the collation
+rule: an umbrella memory's `earliest` is the smallest in its span, so a negation would sort
+it to the foot of its span with everything it refers to above it. Sorting by the span's end
+keeps it at the head, and keeps the rule true at every granularity — a memory dated
+`2019-07` heads July exactly as `2019` heads the year.
+
+The collation rule itself is what anything reasoning *about* time uses — detecting episodes,
+deriving a span from a selection — where the direction of reading is irrelevant and forward
+order is the natural one.
+
 **Derived spans for tags.** A tag's span is derived from the memories carrying it, rounded
 out to the coarsest precision that covers them. This is how a tag appears in the time
 projection without being an object in time.
@@ -557,7 +570,8 @@ survive projection switches. Empty filter means the whole archive.
 Filter facets: date range (precision-aware), tags (any/all), people, places (transitively
 via `schema:containedInPlace`), public event, has media, depth (top-level / flattened).
 
-- **S-22a Time** — chronological list, grouped per the collation rule. Tags shown inline.
+- **S-22a Time** — reverse-chronological list, grouped per the collation rule. Tags shown
+  inline.
   Default projection. Offers dismissible **grouping suggestions**: clusters detected in
   time and space, with one tap to tag them or write a memory about them. A dismissal is
   remembered and never re-proposed (§3.9).

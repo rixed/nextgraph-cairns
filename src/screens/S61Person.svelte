@@ -22,7 +22,7 @@
         parsePrecisionDate,
         formatPrecisionDate,
         memoryInterval,
-        compareIntervals,
+        compareRecent,
     } from "../lib/dates";
     import { router } from "../lib/router.svelte";
     import TagChips from "../components/TagChips.svelte";
@@ -69,7 +69,8 @@
                 const end = parsePrecisionDate(m.endDate ?? undefined);
                 return [{ m, start, span: memoryInterval(start, end) }];
             })
-            .sort((a, b) => compareIntervals(a.span, b.span));
+            // Newest first, like the archive itself (§3.1).
+            .sort((a, b) => compareRecent(a.span, b.span));
     });
 
     /** Places you have both been — §6.2's "shared places". */
