@@ -4,6 +4,7 @@
 // There is no write path to a media document, and there never will be.
 
 import { sessionPromise } from "./ngSession";
+import { oneEach } from "./identity";
 import { SPARQL_PREFIXES } from "./typedLiterals";
 import { interval, parsePrecisionDate, type Interval } from "./dates";
 import type { Audio, Image, Video } from "../shapes/orm/mediaShape.typings";
@@ -50,6 +51,25 @@ export function toMedia(
         lat: d.gpsLatitude,
         lon: d.gpsLongitude,
     };
+}
+
+/**
+ * One descriptor per document (§3.4). The document is the unit of media
+ * everywhere else in this app: a memory's `schema:subjectOf` holds document
+ * NURIs, a rejection names one, `file_get` streams out of one, the grid selects
+ * them. Two descriptors in the same document are therefore two things nothing
+ * downstream can tell apart — attaching one attaches both — and a media
+ * document is whatever its own application wrote, so it may perfectly well hold
+ * a photograph and a crop of it.
+ *
+ * Folding them here is what keeps the counts honest and the same document from
+ * reaching a keyed list twice, which took the whole grid down with
+ * `each_key_duplicate` — a foreign document must never be able to do that
+ * (lib/identity.ts, where the same rule is applied by subject). The first read
+ * wins, images before videos before audio.
+ */
+export function onePerDocument(all: Media[]): Media[] {
+    return oneEach(all, (m) => m.doc);
 }
 
 /** When the photograph was taken, in epoch ms, if the descriptor says. */

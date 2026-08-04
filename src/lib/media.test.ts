@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { spanOf, mediaInSpan, coverFor, takenAtMs, type Media } from "./media";
+import {
+    spanOf,
+    mediaInSpan,
+    coverFor,
+    takenAtMs,
+    onePerDocument,
+    type Media,
+} from "./media";
 import type { Memory } from "../shapes/orm/memoryShape.typings";
 
 const media = (
@@ -76,6 +83,30 @@ describe("mediaInSpan", () => {
     it("never associates a photograph the camera did not date", () => {
         expect(mediaInSpan([media("undated", undefined)], span)).toEqual([]);
         expect(takenAtMs(media("junk", "whenever"))).toBeUndefined();
+    });
+});
+
+describe("onePerDocument", () => {
+    /** Two descriptors in one document: a photograph and a crop of it. */
+    const crop = { ...media("photoA", "2019-08-14T09:00:00"), id: "photoA#crop" };
+
+    it("shows a document once, however many descriptors it holds", () => {
+        const all = onePerDocument([
+            media("photoA", "2019-08-14T09:00:00"),
+            crop,
+            media("photoB", "2019-08-14T10:00:00"),
+        ]);
+        expect(all.map((m) => m.doc)).toEqual(["photoA", "photoB"]);
+    });
+
+    it("keeps the first read, so the kind is the one that was found first", () => {
+        const clip = { ...media("both"), kind: "video" as const };
+        expect(onePerDocument([media("both"), clip])[0].kind).toBe("image");
+    });
+
+    it("leaves distinct documents alone, in the order they arrived", () => {
+        const all = [media("b"), media("a"), media("c")];
+        expect(onePerDocument(all)).toEqual(all);
     });
 });
 

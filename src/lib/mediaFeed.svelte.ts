@@ -13,7 +13,7 @@ import {
     VideoShapeType,
 } from "../shapes/orm/mediaShape.shapeTypes";
 import type { Audio, Image, Video } from "../shapes/orm/mediaShape.typings";
-import { toMedia, type Media } from "./media";
+import { toMedia, onePerDocument, type Media } from "./media";
 
 const SHAPES = [ImageShapeType, VideoShapeType, AudioShapeType] as const;
 
@@ -24,7 +24,7 @@ export function useAllMedia() {
     const audios = useShape(AudioShapeType, "did:ng:i");
     return {
         get all(): Media[] {
-            return [
+            return onePerDocument([
                 ...([...images] as unknown as Image[]).map((d) =>
                     toMedia(d, "image")
                 ),
@@ -34,7 +34,7 @@ export function useAllMedia() {
                 ...([...audios] as unknown as Audio[]).map((d) =>
                     toMedia(d, "audio")
                 ),
-            ];
+            ]);
         },
     };
 }
