@@ -4,6 +4,7 @@
 // datatype and all mutations share one code path.
 
 import { sessionPromise } from "./ngSession";
+import { forgetMemory } from "./rejections.svelte";
 import type { PrecisionDate } from "./dates";
 import {
     SPARQL_PREFIXES,
@@ -186,8 +187,13 @@ export async function removeTags(
  * Delete a memory: drop every triple of its document. Recovery is the
  * framework's commit history (§1.2) — nothing is rewritten, a new commit
  * removes the current state.
+ *
+ * The rejections keyed to it go too (§3.9). This is the only moment they can
+ * safely go: afterwards the document is empty, and an empty document is
+ * indistinguishable from one that has not synced yet (see `forgetMemory`).
  */
 export async function deleteMemory(doc: string): Promise<void> {
+    forgetMemory(doc);
     const s = await sessionPromise;
     await s.ng.sparql_update(
         s.session_id,

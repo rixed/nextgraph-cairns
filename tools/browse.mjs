@@ -2539,6 +2539,17 @@ try {
                     .then((r) => r[0]?.m?.value),
             MEMORY
         );
+        const declinedFor = (d) =>
+            f.evaluate(
+                (m) => window.spikeRejections()?.declinedPrompts?.[m] ?? [],
+                d
+            );
+        console.log(
+            (await declinedFor(memoryDoc)).length === 1
+                ? "OK: the 'no' is in the rejections document, keyed by memory"
+                : `FAIL: ${JSON.stringify(await declinedFor(memoryDoc))}`
+        );
+
         await f.evaluate(
             (d) => (location.hash = `#/edit/${encodeURIComponent(d)}`),
             memoryDoc
@@ -2598,8 +2609,40 @@ try {
         );
         await shot(page, "s41-offered-by-nearness");
 
+        console.log("=== and a rejection does not outlive its memory ===");
+        // Dismiss it again, so there is a standing "no" to delete: the tick
+        // above withdrew the first one.
+        await f.evaluate(
+            (d) => (location.hash = `#/edit/${encodeURIComponent(d)}`),
+            memoryDoc
+        );
+        await page.waitForTimeout(5000);
+        // Untick it: a ticked prompt is labelled by its own note, and while it
+        // is ticked it is not among the offers there is anything to dismiss.
+        await f.getByText(NOTE, { exact: false }).first().click();
+        await page.waitForTimeout(1000);
+        await f.getByLabel("Not this one").first().click();
+        await page.waitForTimeout(500);
+        await f.getByRole("button", { name: "Save", exact: true }).click();
+        await page.waitForTimeout(6000);
+        console.log(
+            (await declinedFor(memoryDoc)).length === 1
+                ? "OK: a standing 'no' before the memory goes"
+                : `FAIL: nothing to delete — ${JSON.stringify(await declinedFor(memoryDoc))}`
+        );
+
         if (!process.env.KEEP) {
             await cleanUp(page, f, MEMORY, 0);
+            await page.waitForTimeout(2000);
+            const orphan = await f.evaluate(
+                (m) => Object.keys(window.spikeRejections()?.declinedPrompts ?? {}).includes(m),
+                memoryDoc
+            );
+            console.log(
+                !orphan
+                    ? "OK: deleting the memory took its rejections with it"
+                    : "FAIL: a rejection outlived the memory it was keyed to"
+            );
             await wipeRecs();
             await wipePlaces();
             await page.waitForTimeout(2500);

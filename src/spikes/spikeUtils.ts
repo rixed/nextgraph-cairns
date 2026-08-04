@@ -1,4 +1,5 @@
 import { sessionPromise } from "../lib/ngSession";
+import { rejectionsSnapshot } from "../lib/rejections.svelte";
 
 export const APP_CLASS = "did:ng:z:cairns/Memory";
 
@@ -71,3 +72,6 @@ export function fmt(ms: number): string {
 // in P0, and a test run should still leave the store as it found it.
 (window as any).spikeSelect = select;
 (window as any).spikeUpdate = update;
+// The rejections document is JSON, and the two hooks above are SPARQL: without
+// this one a scenario cannot see a stored "no" at all (§3.9).
+(window as any).spikeRejections = rejectionsSnapshot;

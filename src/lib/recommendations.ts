@@ -21,6 +21,7 @@ import { RecommendationShapeType } from "../shapes/orm/recommendationShape.shape
 import type { Recommendation as RecShape } from "../shapes/orm/recommendationShape.typings";
 import { SPARQL_PREFIXES, dateLiteral, stringLiteral } from "./typedLiterals";
 import { km } from "./here.svelte";
+import { forgetRecommendation } from "./rejections.svelte";
 import { parsePrecisionDate, type PrecisionDate } from "./dates";
 
 /** A recommendation as the app cares about it, flattened from the shape. */
@@ -240,6 +241,9 @@ export async function updateRecommendation(
  * initiative. This is the user asking.
  */
 export async function removeRecommendation(id: string): Promise<void> {
+    // Every "this is not why" about it goes with it (§3.9): the user deleting
+    // it is the app's one chance to know the key is dead.
+    forgetRecommendation(id);
     const doc = docOf(id);
     const s = await sessionPromise;
     await s.ng.sparql_update(

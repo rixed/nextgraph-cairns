@@ -338,7 +338,14 @@ has to weigh.
 
 A rejection is keyed by the memory it concerns, so one made while writing a memory that does
 not exist yet is held until it is saved — and a memory that is cancelled instead stores
-none.
+none. It is dropped when the thing it is keyed to is deleted, at the moment of deletion:
+deleting a memory empties its document rather than removing the NURI, so afterwards a
+deleted memory and one that has simply not synced are the same thing (§8). A sweep for
+"rejections with nothing behind them" would therefore delete live ones on any run where sync
+was incomplete — silently, and visible to the user only as the app asking again about
+something they had dismissed. Rejections for documents this app does not delete (foreign
+media, §5) are left to accumulate: they are a key nothing will look up, and no test can
+distinguish them from a document that is merely away.
 
 This is the single deliberate exception to "derived data is never stored", and it is stated
 once here rather than apologised for in four places. The alternative — recomputing an

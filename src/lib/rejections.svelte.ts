@@ -81,6 +81,16 @@ export function bindRejections() {
 /** True while the document has not arrived: nothing is suppressed yet. */
 export const rejectionsReady = () => root !== undefined;
 
+/**
+ * A plain copy, for the headless driver. SPARQL never sees the JSON side of a
+ * document (spike 5), so a scenario asserting on a stored "no" has no other
+ * way to read one — and a rejection that is not asserted on is a rejection
+ * nobody knows is there.
+ */
+export function rejectionsSnapshot(): unknown {
+    return root ? JSON.parse(JSON.stringify(root)) : undefined;
+}
+
 /** Did the user say this photograph does not belong to this memory? */
 export function isMediaSuppressed(memoryDoc: string, mediaDoc: string): boolean {
     return !!root?.suppressedMedia?.[memoryDoc]?.includes(mediaDoc);
@@ -113,6 +123,48 @@ export function unsuppressMedia(memoryDoc: string, mediaDoc: string) {
     if (!list) return;
     const i = list.indexOf(mediaDoc);
     if (i >= 0) list.splice(i, 1);
+}
+
+// ---------------------------------------------------------------------------
+// Forgetting
+//
+// A rejection outlives what it is keyed to unless something drops it, and the
+// only safe moment to drop one is when the app itself destroys the other side.
+//
+// Not at startup, which is the tempting place: deleting a memory empties its
+// document (`deleteMemory`) rather than removing the NURI, so a deleted memory
+// is a NURI holding no triples — which is exactly what a memory that has not
+// synced yet looks like (§8). A sweep over "keys with no memory behind them"
+// would therefore delete live rejections on any run where sync was incomplete,
+// silently, and the symptom would be the app nagging again about something the
+// user had already dismissed, with no way to tell why. Cheap to write, and
+// wrong at the one moment it would run.
+//
+// Media documents get no hook: they are foreign (§5), this app never deletes
+// one, and a foreign document going away is precisely the case that cannot be
+// told from one that has not arrived.
+// ---------------------------------------------------------------------------
+
+/** Everything recorded about a memory, dropped with the memory itself. */
+export function forgetMemory(memoryDoc: string) {
+    const doc = root;
+    if (!doc) return;
+    delete doc.suppressedMedia?.[memoryDoc];
+    delete doc.declinedPrompts?.[memoryDoc];
+}
+
+/**
+ * A recommendation dropped from every memory that declined it — the other
+ * direction, and the same certainty: the user just deleted it.
+ */
+export function forgetRecommendation(rec: string) {
+    const byMemory = root?.declinedPrompts;
+    if (!byMemory) return;
+    for (const [memoryDoc, list] of Object.entries(byMemory)) {
+        const i = list.indexOf(rec);
+        if (i >= 0) list.splice(i, 1);
+        if (!list.length) delete byMemory[memoryDoc];
+    }
 }
 
 /** Did the user say this recommendation is not why this memory happened? */
