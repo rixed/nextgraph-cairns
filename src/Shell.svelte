@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { router, type Route } from "./lib/router.svelte";
+    import { router, type Route, type RouteName } from "./lib/router.svelte";
     import { sessionPromise } from "./lib/ngSession";
     import { bindRejections } from "./lib/rejections.svelte";
     import S22Browse from "./screens/S22Browse.svelte";
@@ -65,23 +65,44 @@
             t.route ?? { name: "stub", params: { label: t.label } }
         );
 
+    // Which tab a route sits under. Consulted for the root of the stack only:
+    // a memory, a photograph or a half-written editor is pushed on top of the
+    // tab the user came from, and that tab is the one "back" returns to, so it
+    // stays lit while the transient screen is up. The root is a tab's own route
+    // whenever the user got there by tapping a tab; a deep link (or a reload)
+    // can make a pushed screen the root, and then the tab that owns it is the
+    // honest answer.
+    const owningTab: Record<RouteName, RouteName | undefined> = {
+        here: "here",
+        // Everything the archive opens into hangs off Browse.
+        browse: "browse",
+        detail: "browse",
+        editor: "browse",
+        mediagrid: "browse",
+        media: "browse",
+        place: "browse",
+        placepicker: "browse",
+        placeeditor: "browse",
+        // S-02 is reached from Here & Now's search box.
+        search: "here",
+        people: "people",
+        // S-61 is opened from People, and from a memory's attendees.
+        person: "people",
+        heard: "heard",
+        // S-41 is only ever reached from Heard about, or from a place.
+        recommendation: "heard",
+        me: "me",
+        visible: "me",
+        dev: undefined,
+        stub: undefined,
+    };
+
+    const root = $derived(router.stack[0]);
+
     const isActive = (t: (typeof tabs)[number]) =>
         t.route
-            ? router.current.name === t.route.name ||
-              router.current.name === "detail" ||
-              router.current.name === "editor" ||
-              // The projections and what they open into are all Browse.
-              router.current.name === "mediagrid" ||
-              router.current.name === "media" ||
-              router.current.name === "placepicker" ||
-              (t.route.name === "me" && router.current.name === "visible") ||
-              // S-61 is opened from People, and from a memory's attendees.
-              (t.route.name === "people" && router.current.name === "person") ||
-              // S-41 is only ever reached from Heard about, or from a place.
-              (t.route.name === "heard" &&
-                  router.current.name === "recommendation")
-            : router.current.name === "stub" &&
-              router.current.params?.label === t.label;
+            ? owningTab[root.name] === t.route.name
+            : root.name === "stub" && root.params?.label === t.label;
 </script>
 
 <div class="min-h-dvh pb-24">
