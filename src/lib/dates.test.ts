@@ -70,7 +70,7 @@ describe("interval", () => {
     });
 });
 
-describe("collation (§3.1)", () => {
+describe("forward order, for code that reasons about time", () => {
     it("sorts by earliest, ties by latest — coarse before fine", () => {
         const items = [
             d("2019-08-14"),
@@ -103,7 +103,7 @@ describe("collation (§3.1)", () => {
     });
 });
 
-describe("compareRecent — the collation rule read backwards", () => {
+describe("collation (§3.1) — what the archive is read in", () => {
     const sorted = (lexicals: string[]) =>
         [...lexicals]
             .map(d)

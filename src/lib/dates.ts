@@ -107,27 +107,29 @@ export function memoryInterval(
 }
 
 /**
- * §3.1 collation: smallest earliest first, ties broken by largest latest, so
- * coarser values sort before finer ones within the same span (umbrella
- * memories head their span).
+ * Forward order: smallest earliest first, ties broken by largest latest, so
+ * coarser values sort before finer ones within the same span.
+ *
+ * Not what the archive is shown in — that is `compareRecent`, the §3.1
+ * collation rule. This is for code reasoning *about* time rather than
+ * presenting it: detecting episodes, deriving a span from a selection. Which
+ * end you read from is a question about reading, and those have no reader.
  */
 export function compareIntervals(a: Interval, b: Interval): number {
     return a.earliest - b.earliest || b.latest - a.latest;
 }
 
 /**
- * §3.1 collation, read backwards: what the archive is *shown* in, because the
- * thing you are most likely to be looking for is the thing that just happened.
+ * §3.1 collation: largest `latest` first, ties broken by smallest `earliest`,
+ * so the most recent memories come first but coarser ones sort before finer
+ * ones within the same span. What the archive is read in.
  *
- * Not `-compareIntervals`. Negating it would sort by earliest descending, and
- * an umbrella memory's `earliest` is the smallest in its span — so "The Van
- * Year" would land at the *foot* of 2019 with everything it refers to above
- * it, which is §3.1's umbrella rule inverted rather than mirrored.
- *
- * Largest `latest` first, ties broken by smallest `earliest`, is the true
- * mirror: an umbrella's span reaches further than anything inside it, so it
- * still leads, and the rule holds at every granularity — a memory dated
- * `2019-07` heads July exactly as `2019` heads the year.
+ * Deliberately not `-compareIntervals`, and not "largest earliest first"
+ * either: an umbrella memory's `earliest` is the smallest in its span, so
+ * either of those would land "The Van Year" at the *foot* of 2019 with
+ * everything it refers to above it. Sorting on where a span ends keeps it at
+ * the head, at every granularity — a memory dated `2019-07` heads July exactly
+ * as `2019` heads the year.
  */
 export function compareRecent(a: Interval, b: Interval): number {
     return b.latest - a.latest || a.earliest - b.earliest;

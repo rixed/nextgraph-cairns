@@ -7,7 +7,7 @@
 // also why it degrades correctly under §8: a place that has not arrived yet
 // simply produces no group, rather than a wrong one.
 
-import { compareIntervals, interval, parsePrecisionDate } from "./dates";
+import { compareRecent, interval, parsePrecisionDate } from "./dates";
 import { isIdentified } from "./places";
 import { findPerson, personKey, type Person } from "./people";
 import type { Memory } from "../shapes/orm/memoryShape.typings";
@@ -59,16 +59,18 @@ function keysOf(m: Memory, ctx: SiblingContext): Map<Facet, string[]> {
 }
 
 /**
- * Newest first. The archive's own order is oldest first (§3.1 collation), but
- * a sibling list answers "when else did this happen?", and the answer that
- * matters most is usually the nearest one. Memories with no readable date sort
- * last rather than being dropped — the reference is still true (§1.3.15).
+ * Newest first, which is now simply the archive's own order (§3.1 collation) —
+ * this list wanted it before the archive did, and used to negate the forward
+ * rule to get it. That negation had the umbrella bug in it: a memory dated
+ * `2019` sorted below every finer memory of 2019, because negating puts the
+ * smallest `earliest` last. Memories with no readable date sort last rather
+ * than being dropped — the reference is still true (§1.3.15).
  */
 function byRecency(a: Memory, b: Memory): number {
     const da = parsePrecisionDate(a.startDate);
     const db = parsePrecisionDate(b.startDate);
     if (!da || !db) return da ? -1 : db ? 1 : 0;
-    return -compareIntervals(interval(da), interval(db));
+    return compareRecent(interval(da), interval(db));
 }
 
 export const FACET_ORDER: Facet[] = ["place", "person", "tag", "event"];

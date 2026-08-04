@@ -1,7 +1,8 @@
 <script lang="ts">
-    // S-22a Time projection: chronological list grouped per the §3.1 collation
-    // rule. The default projection, rendered inside the S-22 shell, which owns
-    // the filter and the selection this reads.
+    // S-22a Time projection: the archive in §3.1 collation order — most recent
+    // first — grouped under derived headers. The default projection, rendered
+    // inside the S-22 shell, which owns the filter and the selection this
+    // reads.
     //
     // It also offers the grouping suggestions of §6.2 — runs of memories that
     // look like one episode, with one tap to tag them or write a memory about

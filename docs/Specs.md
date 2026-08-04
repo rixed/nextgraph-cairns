@@ -125,21 +125,22 @@ Precision is intrinsic to the literal's datatype, not a separate property:
 Rendering shows exactly the precision stored and never invents more.
 
 **Collation rule.** Each value expands to an interval `[earliest, latest]`. Sort by
-smallest `earliest` first, ties broken by largest `latest`, so coarser values sort before
-finer ones within the same span. Group headers use the coarsest unit shared by the group.
+larger `latest` first, ties broken by smallest `earliest`, so that most recent
+memories appear first but coarser ones sort before finer ones within the same
+span. Group headers use the coarsest unit shared by the group.
 
-**Presentation order is the same rule read backwards: most recent first.** An archive is
-read from the end — what you are looking for is usually what just happened — and every photo
-app the user has ever opened has taught them to expect it. The mirror is *largest `latest`
-first, ties broken by smallest `earliest`*, which is not the same as negating the collation
-rule: an umbrella memory's `earliest` is the smallest in its span, so a negation would sort
-it to the foot of its span with everything it refers to above it. Sorting by the span's end
-keeps it at the head, and keeps the rule true at every granularity — a memory dated
-`2019-07` heads July exactly as `2019` heads the year.
+An archive is read from the end: what you are looking for is usually what just happened, and
+every photo app the user has ever opened has taught them to expect it there.
 
-The collation rule itself is what anything reasoning *about* time uses — detecting episodes,
-deriving a span from a selection — where the direction of reading is irrelevant and forward
-order is the natural one.
+The tie-break is not decoration — it is why the rule sorts on `latest` rather than simply
+taking the largest `earliest` first. An umbrella memory's `earliest` is the *smallest* in its
+span, so ordering on that would put "The Van Year" at the foot of 2019 with everything it
+refers to above it. Sorting on where a span ends keeps it at the head, and keeps it true at
+every granularity: a memory dated `2019-07` heads July exactly as `2019` heads the year.
+
+Code that reasons *about* time rather than presenting it — detecting episodes, deriving a
+span from a selection — walks the same intervals forward instead. Which end you read from is
+a question about reading, not about the archive.
 
 **Derived spans for tags.** A tag's span is derived from the memories carrying it, rounded
 out to the coarsest precision that covers them. This is how a tag appears in the time
