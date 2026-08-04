@@ -31,14 +31,26 @@
             .filter((m): m is Media => !!m)
     );
 
-    const byOverlap = $derived.by(() => {
+    /** Associated by overlap, minus the pairings the user rejected (§3.9). */
+    const inSpan = $derived.by(() => {
         const span = spanOf(memory.startDate, memory.endDate);
         if (!span) return [];
         const attached = new Set(explicit.map((m) => m.doc));
-        return mediaInSpan(all, span).filter(
-            (m) => !attached.has(m.doc) && !isMediaSuppressed(doc, m.doc)
-        );
+        return mediaInSpan(all, span).filter((m) => !attached.has(m.doc));
     });
+
+    const byOverlap = $derived(
+        inSpan.filter((m) => !isMediaSuppressed(doc, m.doc))
+    );
+    /**
+     * The ones dismissed. Masked rather than gone (§8): the rule is that a
+     * rejected proposal is never proposed again, which is not the same as the
+     * user losing the way back to what they dismissed.
+     */
+    const suppressed = $derived(
+        inSpan.filter((m) => isMediaSuppressed(doc, m.doc))
+    );
+    let showSuppressed = $state(false);
 
     const shown = $derived([...explicit, ...byOverlap]);
     const placeholders = $derived(
@@ -51,7 +63,10 @@
         router.push({ name: "media", params: { doc: m.doc, from: doc } });
 </script>
 
-{#if shown.length}
+<!-- Also when everything on offer was dismissed: the reveal is the only way
+     back to those, and a memory whose whole strip was rejected is exactly the
+     case where losing it would matter. -->
+{#if shown.length || suppressed.length}
     <section class="flex flex-col gap-1">
         <div class="flex items-baseline gap-2">
             <h2 class="font-semibold">Photographs</h2>
@@ -73,7 +88,7 @@
             </button>
         </div>
 
-        <div class="flex gap-2 overflow-x-auto pb-1">
+        <div class="flex gap-2 overflow-x-auto pb-1" class:hidden={!shown.length}>
             {#each shown as m (m.doc)}
                 <div class="w-24 shrink-0 flex flex-col gap-0.5">
                     <MediaTile media={m} onclick={() => open(m)} />
@@ -91,6 +106,29 @@
                 {placeholders} of these publish no thumbnail and show as
                 placeholders.
             </p>
+        {/if}
+
+        {#if suppressed.length}
+            <button
+                class="text-xs opacity-60 hover:opacity-100 underline self-start"
+                onclick={() => (showSuppressed = !showSuppressed)}
+            >
+                {showSuppressed
+                    ? "hide former suggestions"
+                    : `see ${suppressed.length} former suggestion${suppressed.length > 1 ? "s" : ""}`}
+            </button>
+            {#if showSuppressed}
+                <!-- Dimmed, and opening one reaches S-51's "Undo 'not this
+                     one'": the way back to a dismissal, which is all this
+                     reveal is for. -->
+                <div class="flex gap-2 overflow-x-auto pb-1 opacity-40">
+                    {#each suppressed as m (m.doc)}
+                        <div class="w-24 shrink-0">
+                            <MediaTile media={m} onclick={() => open(m)} />
+                        </div>
+                    {/each}
+                </div>
+            {/if}
         {/if}
     </section>
 {/if}

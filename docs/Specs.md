@@ -320,12 +320,25 @@ where a memory happened when only its photographs know. Inferences are never sto
 |---|---|---|
 | Dismissed grouping suggestion | These memories are not a group | Preferences, globally |
 | Suppressed media association | This photograph does not belong to this memory | On the memory |
+| Declined prompt | This recommendation is not why this memory happened | On the memory |
 | Declined derived location | Do not place this memory where its media were taken | On the memory |
 | Dropped share item | This media does not travel with this memory (P1) | On the grant |
 
 One rule governs all of them: **the app never re-proposes what the user rejected.** A
 rejection is small, durable, and specific — it records a "no" about one pairing, not a
 preference to be generalised.
+
+**Rejected is masked, never deleted (§8).** Not re-proposing is not the same as taking
+something away: every screen that hides rejections offers *"see N former suggestions"*,
+which reveals them dimmed and lets any of them be taken back. Accepting a suggestion the
+user had rejected — ticking the prompt, attaching the photograph — withdraws the "no" on
+its own, since nothing else could be meant by it. This is what keeps a rejection cheap to
+make: a wrong dismissal costs one click to undo, so dismissing is never a decision the user
+has to weigh.
+
+A rejection is keyed by the memory it concerns, so one made while writing a memory that does
+not exist yet is held until it is saved — and a memory that is cancelled instead stores
+none.
 
 This is the single deliberate exception to "derived data is never stored", and it is stated
 once here rather than apologised for in four places. The alternative — recomputing an

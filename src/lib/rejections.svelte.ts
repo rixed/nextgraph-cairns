@@ -51,6 +51,15 @@ interface RejectionsDoc {
     version?: number;
     /** memory NURI → media document NURIs the user said do not belong. */
     suppressedMedia?: Record<string, string[]>;
+    /**
+     * memory NURI → recommendation IRIs the user said did not prompt it.
+     *
+     * Needed once the offer became a guess about nearness (§4.1): while it was
+     * exact, a wrong offer was rare and forgetting the "no" cost one glance
+     * per edit. A recommendation 300 m from somewhere you often are would come
+     * back every time, which is precisely the nagging §3.9 exists to stop.
+     */
+    declinedPrompts?: Record<string, string[]>;
 }
 
 let root = $state.raw<RejectionsDoc | undefined>(undefined);
@@ -103,5 +112,45 @@ export function unsuppressMedia(memoryDoc: string, mediaDoc: string) {
     const list = root?.suppressedMedia?.[memoryDoc];
     if (!list) return;
     const i = list.indexOf(mediaDoc);
+    if (i >= 0) list.splice(i, 1);
+}
+
+/** Did the user say this recommendation is not why this memory happened? */
+export function isPromptDeclined(memoryDoc: string, rec: string): boolean {
+    return !!root?.declinedPrompts?.[memoryDoc]?.includes(rec);
+}
+
+/** Every offer declined for a memory — what "see former suggestions" reveals. */
+export function declinedPromptsOf(memoryDoc: string): string[] {
+    return root?.declinedPrompts?.[memoryDoc] ?? [];
+}
+
+/**
+ * Record that an offer was wrong. Per pairing, like every other rejection: it
+ * says nothing about the recommendation, which is still somewhere you were
+ * told about, nor about the memory.
+ *
+ * Several at once, because a new memory has no NURI to key on until it is
+ * saved — the editor holds the "no"s until there is something to attach them
+ * to, and a cancelled memory stores none, having never existed.
+ */
+export function declinePrompts(memoryDoc: string, recs: string[]) {
+    const doc = root;
+    if (!doc || !recs.length) return;
+    doc.declinedPrompts ??= {};
+    doc.declinedPrompts[memoryDoc] ??= [];
+    for (const rec of recs)
+        if (!doc.declinedPrompts[memoryDoc].includes(rec))
+            doc.declinedPrompts[memoryDoc].push(rec);
+}
+
+/**
+ * Undo one — reached through "see former suggestions", and implied by ticking
+ * the offer, which plainly overrides the earlier "no".
+ */
+export function undeclinePrompt(memoryDoc: string, rec: string) {
+    const list = root?.declinedPrompts?.[memoryDoc];
+    if (!list) return;
+    const i = list.indexOf(rec);
     if (i >= 0) list.splice(i, 1);
 }

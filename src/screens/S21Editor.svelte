@@ -37,6 +37,11 @@
         type Point,
     } from "../lib/recommendations";
     import { referentPlace, pointOf } from "../lib/heardAbout";
+    import {
+        isPromptDeclined,
+        declinePrompts,
+        undeclinePrompt,
+    } from "../lib/rejections.svelte";
     import { useAllMedia } from "../lib/mediaFeed.svelte";
     import { formatKm } from "../lib/here.svelte";
     import { useEvents } from "../lib/events.svelte";
@@ -207,7 +212,8 @@
         return out;
     });
 
-    const offered = $derived(
+    /** Every offer the rule makes, before the user's earlier "no"s apply. */
+    const matches = $derived(
         promptedBy(
             recs.all,
             {
@@ -223,10 +229,41 @@
         ).filter((o) => !prompts.includes(o.rec.id))
     );
 
+    /**
+     * Offers declined here, not written yet: a new memory has no NURI to key a
+     * rejection on until it is saved, so the "no"s wait for `save` (§3.9). They
+     * behave as if stored in the meantime — dismissing one moves it under the
+     * reveal immediately, whether or not the memory exists.
+     */
+    let dismissed = $state<string[]>([]);
+    /** Whether the user has asked to see what they dismissed. */
+    let showDeclined = $state(false);
+
+    const isDeclined = (id: string) =>
+        dismissed.includes(id) || (!!editedDoc && isPromptDeclined(editedDoc, id));
+
+    const offered = $derived(matches.filter((o) => !isDeclined(o.rec.id)));
+    /** §3.9: never proposed again — masked, and never deleted either (§8). */
+    const declined = $derived(matches.filter((o) => isDeclined(o.rec.id)));
+
+    const decline = (id: string) => {
+        if (!dismissed.includes(id)) dismissed = [...dismissed, id];
+    };
+
+    /** The "no" withdrawn: back among the offers, and out of the document. */
+    const undecline = (id: string) => {
+        dismissed = dismissed.filter((d) => d !== id);
+        if (editedDoc) undeclinePrompt(editedDoc, id);
+    };
+
     const togglePrompt = (id: string) => {
-        prompts = prompts.includes(id)
-            ? prompts.filter((p) => p !== id)
-            : [...prompts, id];
+        // Ticking a declined offer plainly overrides the earlier "no".
+        if (prompts.includes(id)) {
+            prompts = prompts.filter((p) => p !== id);
+            return;
+        }
+        undecline(id);
+        prompts = [...prompts, id];
     };
 
     const toggleEvent = (id: string) => {
@@ -263,9 +300,13 @@
             };
             if (editedDoc) {
                 await updateMemory(editedDoc, fields);
+                declinePrompts(editedDoc, dismissed);
                 router.pop();
             } else {
                 const doc = await createMemory(fields);
+                // Only now is there a NURI to key the "no"s on. A memory that
+                // was cancelled instead stores none, having never existed.
+                declinePrompts(doc, dismissed);
                 router.pop();
                 router.push({ name: "detail", params: { doc } });
             }
@@ -423,7 +464,7 @@
             </div>
         {/if}
 
-        {#if prompts.length || offered.length}
+        {#if prompts.length || offered.length || declined.length}
             <div class="flex flex-col gap-1">
                 <div class="label">
                     <span class="label-text">Prompted by</span>
@@ -450,25 +491,77 @@
                          The distance is shown because the offer is now a guess:
                          one made on nearness has to say how near, or a wrong
                          one is a mystery rather than something to dismiss. -->
-                    <label class="label cursor-pointer justify-start gap-2 py-0">
-                        <input
-                            type="checkbox"
-                            class="checkbox checkbox-sm"
-                            onchange={() => togglePrompt(o.rec.id)}
-                        />
-                        <span class="label-text text-sm opacity-70">
-                            {#if o.distanceKm === undefined}
-                                Was this because you were told about it?
-                            {:else}
-                                You were told about somewhere
-                                {formatKm(o.distanceKm)} from here — was this it?
-                            {/if}
-                            {#if o.rec.note}<span class="opacity-60">
-                                    — {o.rec.note}</span
-                                >{/if}
-                        </span>
-                    </label>
+                    <div class="flex items-center gap-1">
+                        <label
+                            class="label cursor-pointer justify-start gap-2 py-0"
+                        >
+                            <input
+                                type="checkbox"
+                                class="checkbox checkbox-sm"
+                                onchange={() => togglePrompt(o.rec.id)}
+                            />
+                            <span class="label-text text-sm opacity-70">
+                                {#if o.distanceKm === undefined}
+                                    Was this because you were told about it?
+                                {:else}
+                                    You were told about somewhere
+                                    {formatKm(o.distanceKm)} from here — was this
+                                    it?
+                                {/if}
+                                {#if o.rec.note}<span class="opacity-60">
+                                        — {o.rec.note}</span
+                                    >{/if}
+                            </span>
+                        </label>
+                        <!-- The "no" §3.9 asks to remember, now that the offer
+                             is a guess and a wrong one would come back at every
+                             edit. Per pairing: it says nothing about the
+                             recommendation, which is still somewhere you were
+                             told about. -->
+                        <button
+                            class="btn btn-ghost btn-xs opacity-50"
+                            aria-label="Not this one"
+                            onclick={() => decline(o.rec.id)}
+                        >
+                            ✕
+                        </button>
+                    </div>
                 {/each}
+
+                <!-- Masked rather than gone (§8): the app stops proposing it,
+                     and the user keeps a way back to what they dismissed. -->
+                {#if declined.length}
+                    <button
+                        class="text-xs opacity-60 hover:opacity-100 underline self-start"
+                        onclick={() => (showDeclined = !showDeclined)}
+                    >
+                        {showDeclined
+                            ? "hide former suggestions"
+                            : `see ${declined.length} former suggestion${declined.length > 1 ? "s" : ""}`}
+                    </button>
+                {/if}
+                {#if showDeclined}
+                    {#each declined as o (o.rec.id)}
+                        <label
+                            class="label cursor-pointer justify-start gap-2 py-0"
+                        >
+                            <input
+                                type="checkbox"
+                                class="checkbox checkbox-sm"
+                                onchange={() => togglePrompt(o.rec.id)}
+                            />
+                            <span class="label-text text-sm opacity-40 italic">
+                                {#if o.distanceKm === undefined}
+                                    You said this was not why.
+                                {:else}
+                                    You said the one {formatKm(o.distanceKm)} from
+                                    here was not why.
+                                {/if}
+                                {#if o.rec.note}<span>— {o.rec.note}</span>{/if}
+                            </span>
+                        </label>
+                    {/each}
+                {/if}
             </div>
         {/if}
 

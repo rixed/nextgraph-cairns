@@ -2510,9 +2510,61 @@ try {
                 : `FAIL: no offer:\n${offer.slice(0, 500)}`
         );
 
+        console.log("=== a wrong guess is dismissed once, not every time ===");
+        // Nearness makes offers that exactness never did, so the "no" has to
+        // be remembered (§3.9) — and masked rather than deleted (§8).
+        await f.getByLabel("Not this one").first().click();
+        await page.waitForTimeout(500);
+        const masked = await f.evaluate(() => document.body.innerText);
+        console.log(
+            /see 1 former suggestion/.test(masked) &&
+                !/was this it\?/.test(masked)
+                ? "OK: dismissed out of the offers and under the reveal"
+                : `FAIL: after dismissing:\n${masked.slice(0, 400)}`
+        );
+        // Saved with the "no" and without the tick: only now is there a memory
+        // NURI to key the rejection on.
+        await f.getByRole("button", { name: "Save", exact: true }).click();
+        await page.waitForTimeout(6000);
+
+        const memoryDoc = await f.evaluate(
+            (t) =>
+                window
+                    .spikeSelect(
+                        `PREFIX schema: <https://schema.org/>
+                         PREFIX app: <did:ng:z:cairns/>
+                         SELECT ?m WHERE { GRAPH ?g {
+                            ?m a app:Memory ; schema:name "${t}" } }`
+                    )
+                    .then((r) => r[0]?.m?.value),
+            MEMORY
+        );
+        await f.evaluate(
+            (d) => (location.hash = `#/edit/${encodeURIComponent(d)}`),
+            memoryDoc
+        );
+        await page.waitForTimeout(5000);
+        const reopened = await f.evaluate(() => document.body.innerText);
+        console.log(
+            !/was this it\?/.test(reopened) &&
+                /see 1 former suggestion/.test(reopened)
+                ? "OK: reopened, and the app does not ask a second time (§3.9)"
+                : `FAIL: on reopening:\n${reopened.slice(0, 400)}`
+        );
+
+        await f.getByText("see 1 former suggestion").click();
+        await page.waitForTimeout(500);
+        const revealed = await f.evaluate(() => document.body.innerText);
+        console.log(
+            /You said the one .* was not why/.test(revealed)
+                ? "OK: and still reachable, which is what §8 asks of a rejection"
+                : `FAIL: nothing revealed:\n${revealed.slice(0, 400)}`
+        );
+
         // Ticking it is the user's claim, not the app's (§6.2): nearness asks
-        // the question and only this click answers it.
-        await f.getByText(/was this it\?/).first().click();
+        // the question and only this click answers it — and doing so plainly
+        // overrides the "no" recorded a moment ago.
+        await f.getByText(/was not why/).first().click();
         await page.waitForTimeout(500);
         await f.getByRole("button", { name: "Save", exact: true }).click();
         await page.waitForTimeout(6000);
